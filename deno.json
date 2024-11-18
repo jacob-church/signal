@@ -1,6 +1,6 @@
 {
     "name": "@cjc/signal",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "fmt": {
         "indentWidth": 4,
         "exclude": [

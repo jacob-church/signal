@@ -6,31 +6,28 @@ export type EqFunc<T> = (a: T, b: T) => boolean;
 const NoSignal = Symbol("NoSignal");
 
 // deno-lint-ignore no-explicit-any
-export abstract class Signal<T = any> {
-    //////////////////////////////////////////////////////////////////////////////
+export class Signal<T = any> {
+    // STATIC //////////////////////////////////////////////////////////////////
     private static calculating: Signal | undefined = undefined;
     private static calculatingSet = new Set<Signal>();
-    //////////////////////////////////////////////////////////////////////////////
-    protected _value = NoSignal as T;
+    // MEMBERS /////////////////////////////////////////////////////////////////
+    protected internal = NoSignal as T;
     private dirty = true;
     private dependents = new Set<Signal>();
-    //////////////////////////////////////////////////////////////////////////////
-    constructor(protected equals: EqFunc<T> = eq) {}
-    //////////////////////////////////////////////////////////////////////////////
+    // CONSTRUCTOR /////////////////////////////////////////////////////////////
+    constructor(protected calc: () => T, protected equals: EqFunc<T> = eq) {}
+    // PUBLIC //////////////////////////////////////////////////////////////////
     public get value(): T {
         if (this.dirty) {
-            this._value = this.recalculate();
+            this.internal = this.recalculate();
             this.dirty = false;
         }
-        return this._value;
+        return this.internal;
     }
-    public set value(value: T) {
-        this.setValue(value);
+    public set value(_: T) {
+        throw new Error(".value is not writeable");
     }
-    //////////////////////////////////////////////////////////////////////////////
-    protected abstract getValue(): T;
-    protected abstract setValue(value: T): void;
-
+    // PROTECTED ///////////////////////////////////////////////////////////////
     protected setDirty(): void {
         if (!this.dirty) {
             this.dirty = true;
@@ -39,7 +36,7 @@ export abstract class Signal<T = any> {
             }
         }
     }
-    //////////////////////////////////////////////////////////////////////////////
+    // PRIVATE /////////////////////////////////////////////////////////////////
     private recalculate(): T {
         if (Signal.calculatingSet.has(this)) {
             throw new Error("Cyclic signal dependency detected.");
@@ -49,7 +46,7 @@ export abstract class Signal<T = any> {
         const prevCalculating = Signal.calculating;
         Signal.calculating = this;
         try {
-            return this.getValue();
+            return this.calc();
         } finally {
             Signal.calculating = prevCalculating;
             Signal.calculatingSet.delete(this);

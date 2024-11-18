@@ -1,6 +1,6 @@
 import { computed } from "../computed.ts";
 import type { Signal } from "../signal.ts";
-import { signal } from "../simple.ts";
+import { signal } from "../leaf.ts";
 import { assert } from "./lib.ts";
 
 Deno.test("simple signal", () => {
