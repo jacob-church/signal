@@ -1,63 +1,125 @@
-import { computed } from "../computed.ts";
-import type { Signal } from "../signal.ts";
-import { signal } from "../leaf.ts";
+import { computed, effect, flushEffectQueue, state } from "../interface.ts";
 import { assert } from "./lib.ts";
 
-Deno.test("simple signal", () => {
-    const num = signal(5);
-    const str = signal("test");
-    const bool = signal(true);
-    assert(num.value === 5, "number signal should be 5");
-    assert(str.value === "test", 'string signal should be "test"');
-    assert(bool.value === true, "bool value should be 'true'");
-
-    num.value = 10;
-    str.value = "pass";
-    bool.value = false;
-    assert(num.value === 10, "number signal should be 10");
-    assert(str.value === "pass", 'string signal should be "pass"');
-    assert(bool.value === false, "bool value should be 'false'");
-});
-
-Deno.test("computed signal", async (test) => {
-    await test.step("should return correct values", () => {
-        const a = signal(5);
-        const b = signal(10);
-        const c = computed(() => a.value + b.value);
-        assert(c.value === 15, "computed should be 15");
-
-        a.value = 10;
-        assert(c.value === 20, "computed should be 20");
+Deno.test("lazy, cached", () => {
+    let count = 0;
+    const c = computed(() => {
+        count += 1;
+        return 0;
     });
 
-    await test.step("should only recalculate on changes to dependencies", () => {
-        let recalculated = true;
-        const s = signal(0);
-        const c = computed(() => {
-            recalculated = true;
-            return s.value;
-        });
-        assert(c.value === 0, "should be 0");
-        s.value = 10;
-        recalculated = false;
-        assert(c.value === 10, "should be 10");
-        assert(recalculated, "should have recalculated");
-        s.value = 10;
-        recalculated = false;
-        assert(c.value === 10 && !recalculated, "should not have recalculated");
-    });
+    assert(count == 0, "shouldn't eager evaluate");
+    assert(c.get() == 0, "should be able to calculate value");
+    assert(count == 1, "should calculate once");
+    c.get();
+    assert(count == 1, "shouldn't recalculate unless needed");
 });
 
-Deno.test("should error on circular dependencies", () => {
-    let a: Signal<number> | undefined = undefined;
-    const b = computed(() => a?.value ?? 0);
-    const c = computed(() => b.value);
-    a = c; // make circular link
-    let caught = false;
-    try {
-        console.log(c.value);
-    } catch {
-        caught = true;
-    }
-    assert(caught, "should have thrown error");
+Deno.test("tracks changes", () => {
+    const a = state(0);
+    const b = computed(() => a.get());
+
+    assert(b.get() == 0, "should return correct value");
+    a.set(1);
+    assert(b.get() == 1, "should recompute when dependencies change");
+});
+
+Deno.test("ignore state.set if it doesn't change", () => {
+    const a = state(1);
+    let count1 = 0;
+    const b = computed(() => {
+        count1 += 1;
+        return Math.abs(a.get());
+    });
+    let count2 = 0;
+    const c = computed(() => {
+        count2 += 1;
+        return b.get();
+    });
+
+    assert(c.get() == 1, "initial value");
+    assert(count1 == 1, "initial calculate (b)");
+    assert(count2 == 1, "initial calculate (c)");
+    a.set(1);
+    assert(c.get() == 1, "no change");
+    assert(count1 == 1, "shouldn't recalculate if nothing actually changed");
+
+    // todo break out this use case into a later test
+    a.set(-1);
+    assert(c.get() == 1, "still no change");
+    assert(count1 == 2, "recalculate where necessary");
+    assert(
+        count2 == 1,
+        "shouldn't recalculate (transitively) if things didn't change",
+    );
+});
+
+Deno.test("should only track changes to dependencies that actually matter", () => {
+    const toggle = state(true);
+    const negative = state(-1);
+    const positive = state(2);
+
+    let count = 0;
+    const compound = computed(() => {
+        count += 1;
+        if (toggle.get()) {
+            return negative.get();
+        } else {
+            return positive.get();
+        }
+    });
+
+    assert(compound.get() == -1, "initial value");
+
+    positive.set(1);
+    compound.get();
+    assert(
+        count == 1,
+        "shouldn't recalculate when unimportant state changes (positive)",
+    );
+
+    toggle.set(false);
+    assert(compound.get() == 1, "should respond to state change correctly");
+    assert(count == 2, "should recalculate again");
+
+    negative.set(-2);
+    assert(
+        compound.get() == 1,
+        "value shouldn't change because of irrelevant state",
+    );
+    assert(
+        count == 2,
+        "shouldn't recalculate when unimportant state changes (negative)",
+    );
+});
+
+Deno.test("should track unwatched changes", () => {
+    const leaf = state(0);
+    const a = computed(() => leaf.get());
+    const b = computed(() => a.get());
+    const c = computed(() => a.get());
+    const unwatched = computed(() => b.get());
+    const watched = computed(() => c.get());
+    const out: number[] = [];
+    const watcher = effect(() => out.push(watched.get()));
+
+    assert(watched.isWatched() == false, "not watched until the effect is run");
+    flushEffectQueue();
+    assert(
+        watched.isWatched() == true,
+        "should be watched after run of the queue",
+    );
+    assert(out.length == 1, "queue should run effect");
+
+    assert(unwatched.isWatched() == false, "no effect has watched this signal");
+    leaf.set(1);
+    flushEffectQueue();
+    assert(
+        out.length == 2 && out[1] == 1,
+        "effect should run with up to date data",
+    );
+    assert(
+        unwatched.get() == 1,
+        "unwatched effect should still produce correct value",
+    );
 });
