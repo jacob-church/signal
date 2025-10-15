@@ -1,10 +1,10 @@
-# Simple, declarative, reactive, lazy
+# Simple, declarative, reactive, _lazy_
 
-A declarative design pattern for reactive state management, written with Deno
+A declarative design pattern for reactive state management (developed with Deno)
 
 ## Motivation
 
-Signals offer essentially 2 benefits:
+`Signal`s offer essentially 2 benefits:
 
 1. Declarative, reactive calculations
 
@@ -16,44 +16,100 @@ Signals offer essentially 2 benefits:
    Computed signals only recalculate their values when asked, and only if their
    dependency data has meaningfully changed
 
-In this way, Signals function easily as both a reactivity pattern and a
+In this way, `Signal`s function easily as both a reactivity pattern and a
 performance enhancement pattern!
 
 ## Usage
 
-To make a piece of state a signal, simply wrap it with the `signal` method:
+To make a piece of state a `Signal`, simply wrap it with the `state` method:
 
 ```typescript
-const num = signal(0);
-const str = signal("");
-const bool = signal(true);
-const obj = signal({});
+const num = state(0);
+const str = state("");
+const bool = state(true);
+const obj = state({});
 
 // access
-console.log(num.value); // 0
+console.log(num.get()); // 0
 
 // update
-num.value = 10;
+num.set(10);
 ```
 
 To build complex, reactive state, use the `computed` method:
 
 ```typescript
 const data = signal(0);
-const complex = computed(() => data.value + 10);
-console.log(complex.value); // 10
-complex.value = 100; // <<ERROR>> - writing to a computed signal is not allowed
-data.value = 100;
-console.log(complex.value); // 110
+const complex = computed(() => data.get() + 10);
+console.log(complex.get()); // 10
+complex.get() = 100; // <<ERROR>> - writing to a computed signal is not allowed
+data.set(100);
+console.log(complex.get()); // 110
 ```
 
-> **_NOTE_:** For the moment, wrapping an object in a signal does not
+> **_NOTE_:** For the moment, wrapping an object in a `state` does not
 > automatically invalidate `computed` calculations when object properties are
-> updated; for these cases use an optional equality function and reassign
-> `.value`:
+> updated; for these cases use an optional equality function and reassign with
+> `.set()`
 >
 > ```typescript
 > const obj = signal({}, () => false);
-> obj.value["hello"] = "world";
-> obj.value = obj.value;
+> obj.get()["hello"] = "world";
+> obj.set(obj.value);
 > ```
+>
+> Alternatively, you can call `.invalidate()` on the relevant `Signal` to insist
+> that dependent calculations should reevaluate.
+
+# Effects
+
+`Signal`s _always_ track their dependencies, but without the use of the `effect`
+function, updating Signal values will be significantly **less efficient**.
+
+`effect` is a special function for describing a side-effect that depends on the
+value of some number of `Signal`s. By default, the provided calculation will
+_not_ run when it's dependencies change. Instead, it is left to the user to
+decide how frequently the function should run by calling `flushEffectQueue()`.
+
+This pattern ensures that the laziness of `Signal`s isn't in vain by only
+forcing `Signal` values to compute when it's reasonably necessary (such as at
+regular rendering intervals).
+
+## Usage
+
+Define an effect like so:
+
+```typescript
+effect(() => {
+    console.log(someSignal.get());
+});
+```
+
+...and schedule it's evaluation according to your needs:
+
+```typescript
+function flushEffects() {
+    flushEffectsQueue();
+    requestAnimationFrame(flushEffects); // continuously flush the queue each frame
+}
+flushEffects();
+```
+
+If you wish to maintain multiple queues for different purposes (e.g. rendering
+vs. saving/serializing state changes), simply define associate an `effect` with
+a specific `namespace` through it's optional parameter.
+
+Then, if you want to flush a specific queue, pass this identifier to
+`flushEffectsQueue()`:
+
+```typescript
+effect(() => document.getElementsByTagName('body').innerHtml = bodyContents.get(), {
+   namespace: 'render',
+});
+...
+flushEffectsQueue('render');
+```
+
+> **_NOTE_**: Calling `flushEffectsQueue` will flush _all_ queues, regardless of
+> namespace, so be mindful about defining effect namespaces and flushing their
+> relevant queues.
