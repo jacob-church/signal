@@ -1,48 +1,64 @@
 import { assert } from "../lib/test.ts";
-import { computed, signal } from "./signal.ts";
+import { computed, state } from "./interface.ts";
 
-Deno.test("should propagate changes reactively", () => {
-    const a = signal(0);
-    const b = signal(5);
-    const c = computed(() => a.get() + b.get());
-
-    assert(c.get() == 5, "should compute correctly based on dependencies");
-
-    a.set(5);
-    assert(c.get() == 10, "should update correctly based on dependencies");
-});
-
-Deno.test("should update lazily", () => {
-    const a = signal(0);
+Deno.test("should not recompute if State did not actually change", () => {
+    const a = state(0);
     let count = 0;
     const b = computed(() => {
         count += 1;
         return a.get();
     });
+
     b.get();
-    assert(count == 1, "should compute value");
-    a.set(1);
-    assert(count == 1, "should not eagerly evaluate changes");
+    assert(count == 1, "first computation");
+    a.set(0);
+    b.get();
+    assert(count == 1, "shouldn't recompute for no-op change");
 });
 
-Deno.test("should track dependencies across deep call stacks", () => {
-    const a = signal(0);
-    function first() {
-        return a.get() + 1;
-    }
-    function second() {
-        return first() + 1;
-    }
-    function third() {
-        return second() + 1;
-    }
-    function fourth() {
-        return third() + 1;
-    }
+Deno.test("should not recompute if a Computed did not actually change", () => {
+    const a = state(1);
+    let bCount = 0;
+    const b = computed(() => {
+        bCount += 1;
+        return Math.abs(a.get());
+    });
+    let cCount = 0;
+    const c = computed(() => {
+        cCount += 1;
+        return b.get();
+    });
 
-    const b = computed(() => fourth() + 1);
+    c.get();
+    assert(bCount == 1 && cCount == 1, "first computation");
+    a.set(-1);
+    c.get();
+    assert(
+        bCount == 2 && cCount == 1,
+        "shouldn't rerun computations if their dependencies haven't changed",
+    );
+});
 
-    assert(b.get() == 5, "should return correct value");
-    a.set(1);
-    assert(b.get() == 6, "should track dependency through nested functions");
+Deno.test("should not track dependencies that aren't currently relevant", () => {
+    const useA = state(true);
+    const a = state("green");
+    const b = state("red");
+    let count = 0;
+    const color = computed(() => {
+        count += 1;
+        if (useA.get()) {
+            return a.get();
+        } else {
+            return b.get();
+        }
+    });
+
+    assert(color.get() == "green" && count == 1, "first computation");
+    useA.set(false);
+    assert(color.get() == "red" && count == 2, "toggle conditional");
+    a.set("yellow");
+    assert(
+        color.get() == "red" && count == 2,
+        "change to untracked dependency shouldn't cause recompute",
+    );
 });
