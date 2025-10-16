@@ -6,13 +6,18 @@
 
 const UNSET = Symbol("UNSET");
 
-export abstract class Reactive {
+export abstract class Reactive<Comparable = unknown> {
     private static activeConsumer: Reactive | undefined = undefined;
 
     private clean = false;
     /**
      * A very simple tool to measure "did this really update". We'll increment
      * this number only when a meaningful change has taken place.
+     *
+     * P.S. don't worry about integer overflow. The max-safe-integer in
+     * JavaScript is 2^53 - 1. That's so big that if you were to do nothing
+     * but increment this value every millisecond, all day every day, it would
+     * take hundreds of thousands of years for this value to overflow.
      */
     private version = 0;
 
@@ -116,7 +121,10 @@ export abstract class Reactive {
          * Otherwise, we'll iterate through all our dependencies and only
          * recompute if any of them have meaningfully changed
          */
-        for (const [producer, lastSeenVersion] of this.producers.entries()) {
+        for (
+            const [producer, lastSeenVersion] of this
+                .producers.entries()
+        ) {
             if (producer.version != lastSeenVersion) {
                 return true;
             }
@@ -141,7 +149,7 @@ export abstract class Reactive {
 }
 
 export abstract class Signal<T = unknown> extends Reactive {
-    protected _value: T = UNSET as T;
+    protected value: T = UNSET as T;
 
     /**
      * If we're going to evaluate "meaningful change" then we have to enshrine
@@ -150,13 +158,15 @@ export abstract class Signal<T = unknown> extends Reactive {
      * By default we use simple reference comparison, but alternative
      * definitions can be preffered on a case-by-case basis.
      */
-    constructor(public readonly equals: (a: T, b: T) => boolean = Object.is) {
+    constructor(
+        public readonly equals: (a: T, b: T) => boolean = Object.is,
+    ) {
         super();
     }
 
     public get(): T {
         this.maybeUpdate();
-        return this._value;
+        return this.value;
     }
 
     protected override update(): boolean {
@@ -167,22 +177,22 @@ export abstract class Signal<T = unknown> extends Reactive {
      * It's a useful construct to be careful about actually updating our value.
      */
     protected setIfChanged(value: T): boolean {
-        if (this._value == UNSET || !this.equals(value, this._value)) {
-            this._value = value;
+        if (this.value == UNSET || !this.equals(value, this.value)) {
+            this.value = value;
             return true;
         }
         return false;
     }
 
     protected compute(): T {
-        return this._value;
+        return this.value;
     }
 }
 
 export class State<T> extends Signal<T> {
     constructor(initialValue: T, equals?: (a: T, b: T) => boolean) {
         super(equals);
-        this._value = initialValue;
+        this.value = initialValue;
     }
 
     public set(value: T): void {

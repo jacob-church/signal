@@ -1,17 +1,22 @@
 import { assert } from "../lib/test.ts";
-import { computed } from "../v3/signal.ts";
-import { signal } from "./signal.ts";
+import { computed, effect, state } from "./interface.ts";
+import { Effect } from "./signal.ts";
 
-Deno.test("should not propagate changes when the value didn't actually change", () => {
-    const a = signal(0);
-    let count = 0;
-    const b = computed(() => {
-        count += 1;
-        return a.get();
-    });
-    assert(b.get() === 0, "should compute correct value");
-    assert(count == 1, "should compute once");
-    a.set(0);
-    assert(b.get() === 0, "should not change the value");
-    assert(count == 1, "should not recompute");
+Deno.test("basic effects", () => {
+    const value = state(0);
+    const indirect = computed(() => value.get());
+    const out: number[] = [];
+    effect(() => out.push(indirect.get()));
+
+    assert(out.length == 0, "effect does not execute on initialization");
+    Effect.flush();
+    assert(out.length == 1, "effect should enqueue on initialization");
+    Effect.flush();
+    assert(out.length == 1, "queue should clear on flush");
+    value.set(1);
+    Effect.flush();
+    assert(
+        out.length == 2,
+        "invalidating a dependency should enqueue the effect",
+    );
 });
