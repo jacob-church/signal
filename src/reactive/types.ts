@@ -1,12 +1,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Signal Types
+/**
+ * A reactive wrapper around a value.
+ */
 export interface Signal<T = unknown> {
     /** unwraps the inner value held by a `Signal` */
     get(): T;
 }
 
+/**
+ * A `Signal` that supports only the readonly `get()` operation.
+ */
 export type ReadonlySignal<T> = Signal<T>;
 
+/**
+ * A `Signal` with a setter and mutator methods.
+ */
 export interface WritableSignal<T = unknown> extends Signal<T> {
     /**
      * Guarantees that the inner value will match the provided `value`, and
