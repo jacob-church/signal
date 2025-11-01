@@ -101,20 +101,23 @@ Deno.test("should track unwatched changes", () => {
     const unwatched = computed(() => b.get());
     const watched = computed(() => c.get());
     const out: number[] = [];
-    const watcher = effect(() => out.push(watched.get()));
+    effect(() => out.push(watched.get()));
 
     assert(
+        // deno-lint-ignore no-explicit-any
         (watched as any).node.isWatched == false,
         "not watched until the effect is run",
     );
     flushEffectQueue();
     assert(
+        // deno-lint-ignore no-explicit-any
         (watched as any).node.isWatched == true,
         "should be watched after run of the queue",
     );
     assert(out.length == 1, "queue should run effect");
 
     assert(
+        // deno-lint-ignore no-explicit-any
         (unwatched as any).node.isWatched == false,
         "no effect has watched this signal",
     );

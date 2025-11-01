@@ -37,7 +37,10 @@ export class Effect {
  */
 class EffectNode implements Consumer {
     public computeVersion = 0;
-    public readonly producers = new Map<Producer, number>();
+    public readonly producers: Map<Producer, number> = new Map<
+        Producer,
+        number
+    >();
 
     public readonly isWatched = true;
     // Because isWatched is always true, this is never actually needed.

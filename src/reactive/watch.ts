@@ -1,5 +1,5 @@
 import { unlinkIfNeeded } from "./consumer.ts";
-import type { Consumer, SignalNode } from "./types.ts";
+import type { Consumer } from "./types.ts";
 
 /**
  * Recursively updates the watched status for a Consumer's Producers.
@@ -30,6 +30,7 @@ export function unwatchProducers(consumer: Consumer): void {
     }
 }
 
-function isConsumer(node: SignalNode): node is Consumer {
-    return (node as any).producers instanceof Map;
+// deno-lint-ignore no-explicit-any
+function isConsumer(node: any): node is Consumer {
+    return node.producers instanceof Map;
 }
