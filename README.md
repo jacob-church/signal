@@ -1,6 +1,7 @@
 # Simple, declarative, reactive, _lazy_
 
-A declarative design pattern for reactive state management (developed with Deno)
+A declarative design pattern for reactive state management (developed with Deno)<br>
+(for a detailed break down of how Signals work, see [EDU.md](./EDU.md))
 
 ## Motivation
 
