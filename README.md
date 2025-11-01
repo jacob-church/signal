@@ -1,7 +1,12 @@
 # Simple, declarative, reactive, _lazy_
 
-A declarative design pattern for reactive state management (developed with Deno)<br>
-(for a detailed break down of how Signals work, see [EDU.md](./EDU.md))
+A declarative design pattern for reactive state management (developed with Deno)
+
+([**Learn More**](./EDU.md))
+
+[![JSR Version](https://jsr.io/badges/@cjc/signal)](https://jsr.io/@cjc/signal)
+[![JSR Score](https://jsr.io/badges/@cjc/signal/score)](https://jsr.io/@cjc/signal/score)
+[![ci](https://github.com/jacob-church/signal/actions/workflows/publish.yml/badge.svg)](https://github.com/jacob-church/signal/actions/workflows/publish.yml)
 
 ## Motivation
 
