@@ -42,24 +42,40 @@ To build complex, reactive state, use the `computed` method:
 const data = signal(0);
 const complex = computed(() => data.get() + 10);
 console.log(complex.get()); // 10
-complex.get() = 100; // <<ERROR>> - writing to a computed signal is not allowed
+complex.set(100); // <<ERROR>> - writing to a computed signal is not allowed
 data.set(100);
 console.log(complex.get()); // 110
 ```
 
-> **_NOTE_:** For the moment, wrapping an object in a `state` does not
-> automatically invalidate `computed` calculations when object properties are
-> updated; for these cases use an optional equality function and reassign with
-> `.set()`
->
-> ```typescript
-> const obj = signal({}, () => false);
-> obj.get()["hello"] = "world";
-> obj.set(obj.value);
-> ```
->
-> Alternatively, you can call `.invalidate()` on the relevant `Signal` to insist
-> that dependent calculations should reevaluate.
+To manipulate `state`, use the `set`, `mutate`, or `update` functions.
+
+`set` is for overwriting values:
+
+```typescript
+const n = state(0);
+console.log(n.get()); // 0
+n.set(10);
+console.log(n.get()); // 10
+```
+
+`mutate` is for updating values in place. In particular, for manipulating data
+structures in a way that will track changes reactively:
+
+```typescript
+const obj = state({ hello: "world" });
+console.log(obj): // { hello: "world" }
+obj.mutate((value) => value.hello = "devs");
+console.log(obj); // { hello: 'devs' }
+```
+
+`update` is for computing new values _based on_ previous values:
+
+```typescript
+const counter = state(0);
+console.log(counter.get()); // 0
+counter.update((val) => val + 1);
+console.log(counter.get()); // 1
+```
 
 # Effects
 

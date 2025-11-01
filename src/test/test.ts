@@ -44,7 +44,7 @@ Deno.test("ignore state.set if it doesn't change", () => {
     assert(c.get() == 1, "no change");
     assert(count1 == 1, "shouldn't recalculate if nothing actually changed");
 
-    // todo break out this use case into a later test
+    // TODO break out this use case into a later test
     a.set(-1);
     assert(c.get() == 1, "still no change");
     assert(count1 == 2, "recalculate where necessary");
@@ -103,15 +103,21 @@ Deno.test("should track unwatched changes", () => {
     const out: number[] = [];
     const watcher = effect(() => out.push(watched.get()));
 
-    assert(watched.isWatched() == false, "not watched until the effect is run");
+    assert(
+        (watched as any).node.isWatched == false,
+        "not watched until the effect is run",
+    );
     flushEffectQueue();
     assert(
-        watched.isWatched() == true,
+        (watched as any).node.isWatched == true,
         "should be watched after run of the queue",
     );
     assert(out.length == 1, "queue should run effect");
 
-    assert(unwatched.isWatched() == false, "no effect has watched this signal");
+    assert(
+        (unwatched as any).node.isWatched == false,
+        "no effect has watched this signal",
+    );
     leaf.set(1);
     flushEffectQueue();
     assert(

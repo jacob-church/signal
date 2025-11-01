@@ -1,6 +1,17 @@
-export type { Signal } from "./src/reactive/signal.ts";
-export type { WritableSignal } from "./src/reactive/state.ts";
-export type { ReadonlySignal } from "./src/reactive/computed.ts";
-export type { SecureEffect as Effect } from "./src/reactive/effect.ts";
+export type {
+    ReadonlySignal,
+    Signal,
+    WritableSignal,
+} from "./src/reactive/types.ts";
+export type { Effect } from "./src/reactive/effect.ts";
+export type { State } from "./src/reactive/state.ts";
+export type { Computed } from "./src/reactive/computed.ts";
 
-export { computed, state } from "./src/interface.ts";
+export {
+    computed,
+    constant,
+    effect,
+    flushEffectQueue,
+    state,
+    untracked,
+} from "./src/interface.ts";

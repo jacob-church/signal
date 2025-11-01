@@ -1,74 +1,94 @@
-import { Reactive } from "./reactive.ts";
+import { asActiveConsumer } from "./activeConsumer.ts";
+import { anyProducersHaveChanged } from "./consumer.ts";
+import type { Consumer, Producer } from "./types.ts";
+import { unwatchProducers } from "./watch.ts";
 
 /**
- * A schedulable, {@link Reactive} side-effect.
+ * A schedulable side-effect.
  * @see {@link effect}
  */
-export class Effect extends Reactive {
+export class Effect {
+    private readonly node: EffectNode;
+
     constructor(
-        private effect: () => void,
-        private enqueue: (me: Effect) => void,
+        effect: () => void,
+        enqueue: (node: EffectNode) => void,
+        private readonly unenqueue: (node: EffectNode) => void,
     ) {
-        super();
-        this.enqueue(this);
+        this.node = new EffectNode(effect, enqueue);
+        /**
+         * Enqueueing on construction ensures that this Effect will initialize
+         * state and record it's Producer dependencies.
+         */
+        enqueue(this.node);
     }
 
-    // PUBLIC //////////////////////////////////////////////////////////////////
-    /**
-     * Forces this {@link Effect} to be scheduled in it's relevant queue.
-     *
-     * @see {@link Reactive.invalidate}
-     */
-    public override invalidate(): void {
-        super.invalidate();
-        this.enqueue(this);
-    }
-
-    /**
-     * @see {@link Reactive.isWatched}
-     */
-    public override isWatched(): boolean {
-        return true;
-    }
-
-    /**
-     * Directly runs this {@link Effect}'s function with guaranteed up-to-date
-     * dependencies.
-     *
-     * (May not run the effect if it is determined that there have been no
-     * meaningful changes to {@link Signal} dependencies.)
-     */
-    public maybeRun(): void {
-        this.maybeRecompute();
-    }
-
-    /**
-     * TODO
-     */
     public dispose(): void {
-        // TODO proper disposal logic
-        this.unwatch();
-    }
-
-    // PROTECTED ///////////////////////////////////////////////////////////////
-    /**
-     * @see {@link Reactive.update}
-     */
-    protected override update(): boolean {
-        this.effect();
-        return false;
+        this.node.dispose();
+        this.unenqueue(this.node);
     }
 }
 
 /**
- * A safe {@link Effect} type that doesn't allow users to run the {@link Effect}'s
- * action outside of flushing it's relevant queue
+ * As JavaScript does not support multiple inheritance, the roles of "Producer"
+ * and "Consumer" are implemented with interfaces and public values. To not
+ * expose these public members to users of the Signal framework, they are
+ * isolated to Node classes that are not exported.
  */
-export type SecureEffect = Omit<Effect, "maybeRun">;
+class EffectNode implements Consumer {
+    public computeVersion = 0;
+    public readonly producers = new Map<Producer, number>();
+
+    public readonly isWatched = true;
+    // Because isWatched is always true, this is never actually needed.
+    declare public readonly weakRef: WeakRef<Consumer>;
+
+    private disposed?: true;
+
+    constructor(
+        private readonly effectFn: () => void,
+        public readonly enqueue: (me: EffectNode) => void,
+    ) {}
+
+    public run(): void {
+        if (this.disposed) {
+            return;
+        }
+        if (this.producers.size == 0 || anyProducersHaveChanged(this)) {
+            ++this.computeVersion;
+            asActiveConsumer(this, this.effectFn);
+            /**
+             * If there are still no Producer dependencies after running this
+             * Effect as the activeConsumer, there is no reason to model this
+             * function as an effect.
+             */
+            if (this.producers.size == 0) {
+                console.warn(
+                    "Effect created without any Signal dependencies; note that this means the effect will never run again.",
+                );
+            }
+        }
+    }
+
+    public invalidate(): void {
+        if (this.disposed) {
+            return;
+        }
+        this.enqueue(this);
+    }
+
+    public dispose(): void {
+        if (this.disposed) {
+            return;
+        }
+        unwatchProducers(this);
+        this.disposed = true;
+    }
+}
 
 /**
  * A global registry of queues for scheduling {@link Effect}s.
  *
  * @see {@link flushEffectQueue}
  */
-export const EffectQueues = new Map<string, Set<Effect>>();
+export const EffectQueues = new Map<string, Set<EffectNode>>();
