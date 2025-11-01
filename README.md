@@ -77,6 +77,17 @@ counter.update((val) => val + 1);
 console.log(counter.get()); // 1
 ```
 
+Changes to `state` values are automatically reflected in `computed` values on
+their next read:
+
+```typescript
+const num = state(0);
+const plusOne = computed(() => num.get() + 1);
+console.log(plusOne.get()); // 1
+plusOne.set(5);
+console.log(plusOne.get()); // 6
+```
+
 # Effects
 
 `Signal`s _always_ track their dependencies, but without the use of the `effect`
