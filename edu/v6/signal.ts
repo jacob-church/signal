@@ -6,24 +6,11 @@
  *
  * This poses a serious problem for garbage collection.
  */
-
-/**
- * v5 - Effects
- *
- * At this point, we're ready to look as (simple) Effects.
- * 
- * What do we do with this data we've calculated?
- */
-
 interface SignalNode {}
 
 interface Producer<T = unknown> extends SignalNode {
     value: T;
     resolveValue(): void;
-    /**
-     * By tracking a version with our Consumers, we can answer "did they compute
-     * without me?"
-     */
     readonly consumers: Map<Consumer, number>;
     equals(a: T, b: T): boolean;
     readonly valueVersion: number;
@@ -32,10 +19,6 @@ interface Producer<T = unknown> extends SignalNode {
 interface Consumer extends SignalNode {
     invalidate(): void;
     readonly producers: Map<Producer, number>;
-    /**
-     * Like the value version, a Producer can track "did I participate in your 
-     * last compute?"
-     */
     readonly computeVersion: number;
 }
 
@@ -104,8 +87,6 @@ export class Computed<T> implements Producer<T>, Consumer {
 
 function notifyConsumers(producer: Producer): void {
     for (const consumer of producer.consumers.keys()) {
-        // any time we iterate over Consumers is a good chance to clean up stale 
-        // links
         !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
     }
 }
@@ -116,8 +97,6 @@ function recordAccess(producer: Producer): void {
     }
 
     activeConsumer.producers.set(producer, producer.valueVersion);
-    // just like the Producer, an access updates the last version seen on the
-    // Consumer 
     producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
 }
 
@@ -148,8 +127,6 @@ function setIfWouldChange<T>(
 
 function anyProducersHaveChanged(consumer: Consumer): boolean {
     for (const [producer, lastSeenVersion] of consumer.producers.entries()) {
-        // any time we iterate over producers is a good chance to clean up
-        // stale links
         if (unlinkIfNeeded(consumer, producer)) {
             continue;
         }
@@ -168,48 +145,27 @@ function anyProducersHaveChanged(consumer: Consumer): boolean {
 function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
     const lastComputeVersion = producer.consumers.get(consumer);
     if (consumer.computeVersion == lastComputeVersion) {
-        return false; // the link is still good!
+        return false;
     }
 
-    // else, the link is stale; remove it
     consumer.producers.delete(producer);
     producer.consumers.delete(consumer);
     return true;
 }
 
-/**
- * The central question with effects is "when should they run?"
- * This is referred to as "scheduling".
- * 
- * If they run eagerly, then what was the point of all that laziness we built up?
- * 
- * If they don't run at all, then all of this data is useless.
-*/
 export class Effect implements Consumer { 
-    /**
-     * Effects are not marked "stale". Instead, they are set apart to be run
-     * as deemed appropriate.
-     * 
-     * When an Effect is invalidated, it is simply queued to be dealt with later.
-     */
     public static queue = new Set<Effect>();
     public invalidate(): void {
         Effect.queue.add(this);
     }
 
     constructor(private readonly effectFn: () => void) {
-        // Of course, it needs to run at least once. So it is queued by default.
         this.invalidate();
     } 
 
     public readonly producers = new Map<Producer, number>();
     public computeVersion = 0;
-
-    /**
-     * Running an Effect is subject to all the same quesiness--we like to avoid
-     * doing work when we don't have to, So we check for meaningful changes
-     * before continuing.
-     */
+    
     public run(): void {
         if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
             ++this.computeVersion;
