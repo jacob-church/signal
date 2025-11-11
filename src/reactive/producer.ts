@@ -50,6 +50,7 @@ export function notifyConsumers(producer: Producer): void {
             consumer.invalidate();
         } else {
             producer.unwatched.delete(weakRef);
+            consumer?.producers.delete(producer);
         }
     }
 }

@@ -1,9 +1,17 @@
-import {
-    Computed,
-    type ReadonlySignal,
-    State,
-    type WritableSignal,
-} from "./signal.ts";
+import { Computed, State } from "./signal.ts";
+
+/**
+ * Signals are sophisticated wrappers around values. They support a getter to
+ * "unwrap" the value.
+ */
+export interface Signal<T> {
+    get(): T;
+}
+export type ReadonlySignal<T> = Signal<T>;
+
+export interface WritableSignal<T> extends Signal<T> {
+    set(value: T): void;
+}
 
 /**
  * Defines a leaf node in a reactive state graph.

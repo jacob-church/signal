@@ -1,10 +1,13 @@
-import {
-    Computed,
-    Effect,
-    type ReadonlySignal,
-    State,
-    type WritableSignal,
-} from "./signal.ts";
+import { Computed, State } from "./signal.ts";
+
+export interface Signal<T> {
+    get(): T;
+}
+export type ReadonlySignal<T> = Signal<T>;
+
+export interface WritableSignal<T> extends Signal<T> {
+    set(value: T): void;
+}
 
 /**
  * Defines a leaf node in a reactive state graph.
@@ -32,8 +35,8 @@ export function computed<T>(
 /**
  * An schedulable action that should run as a result of changes to reactive state
  * (e.g. rendering, saving/serialization, etc.)
- * @see {@link Effect}
+ *
+ * (We won't come back to this for a while, but it's valuable to know that it's
+ * coming.)
  */
-export function effect(fn: () => void): Effect {
-    return new Effect(fn);
-}
+export function effect(fn: () => void) {}

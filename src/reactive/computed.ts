@@ -25,6 +25,9 @@ export class Computed<T> implements ReadonlySignal<T> {
         this.node = new ComputedNode(compute, equals);
     }
 
+    /**
+     * @see {@link Signal.get}
+     */
     public get(): T {
         updateWatched(this.node);
         this.node.resolveValue();

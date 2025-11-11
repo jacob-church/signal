@@ -10,50 +10,84 @@
  * of calculations
  */
 
-const UNSET = Symbol("UNSET");
+interface SignalNode {}
 
-export abstract class Signal<T = unknown> {
+/**
+ * Every node in the graph with lines coming up out of it is a "Producer".
+ *
+ * They "produce" values to their dependents higher in the graph.
+ */
+interface Producer<T = unknown> extends SignalNode {
+    value: T;
     /**
-     * Using a unique Symbol for our uninitialized state guarantees that we can
-     * store values like `null` and `undefined` without ambiguity
+     * Because some Producers must compute their value, it's handy to have
+     * a common interface for guaranteeing that their value is up to date.
      */
-    protected _value: T = UNSET as T;
-
-    // all Signals expose a getter to the internal value
-    public get(): T {
-        return this._value;
-    }
+    resolveValue(): void;
 }
 
 /**
- * The basic purpose of a State/Writable Signal is to act as a "leaf node" in a
- * Signal graph.
+ * Every node in the graph with lines coming down out of it is a "Consumer".
  *
- * This Signal type holds a piece of state, and can be easily overwritten,
- * representing a change in fundamental state from which other computations
- * flow.
+ * They "consume" values from their dependencies lower in the graph.
  */
-export class State<T> extends Signal<T> {
-    constructor(initialValue: T) {
-        super();
-        this._value = initialValue;
+interface Consumer extends SignalNode {}
+
+/**
+ * "State"s are simple, mutable wrappers around their values.
+ * 
+ * They are the "inputs" to the Signal graph--the "basic facts" from which
+ * all other calculations flow.
+ */
+export class State<T> implements Producer<T> {
+    /** 
+     * It's unfortunate that value is public on this class, but our interfaces
+     * help us to not expose it where we don't want to.
+     * 
+     * Even so, compare the implementation in /src for another way to keep
+     * these values hidden.
+    */
+    constructor(public value: T) {}
+
+    public get(): T {
+        return this.value;
     }
 
     public set(value: T): void {
-        this._value = value;
+        this.value = value;
     }
-}
-export type WritableSignal<T = unknown> = State<T>;
 
+    // No-op for State, as its value is directly set
+    public resolveValue(): void {}
+}
+
+
+const UNSET = Symbol("UNSET");
 /**
- * A typical Computed/ReadonlySignal is a dependant value--it computes as a
- * function of other Signals (whether they be WritableSignals, or other
- * ReadonlySignals).
+ * "Computed"s are readonly, derived values. They should be thought of as 
+ * pure functions that take other Producers as inputs.
  */
-export class Computed<T> extends Signal<T> {
-    constructor(compute: () => T) {
-        super();
-        this._value = compute();
+export class Computed<T> implements Producer<T>, Consumer {
+    /**
+     * UNSET may seem an odd choice here, but consider that we want to support
+     * `null` and `undefined` as valid computed values. Therefore it's not
+     * possible to use either of those as a sentinel for "not yet computed".
+     * 
+     * Symbols have the useful property of being unique--they are only equal to
+     * themselves--so we can be sure that no Computed can ever return this value.
+     */
+    public value = UNSET as T;
+
+    
+    constructor(private readonly compute: () => T) {}
+
+    public get(): T {
+        // let the value settle before returning it
+        this.resolveValue();
+        return this.value;
+    }
+
+    public resolveValue(): void {
+        this.value = this.compute();
     }
 }
-export type ReadonlySignal<T = unknown> = Computed<T>;

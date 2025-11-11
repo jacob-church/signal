@@ -1,212 +1,167 @@
 /**
- * v4 - Effects
+ * v4 - Smarter reactivity
  *
- * Building up a graph of reactive calculations is great, but it's worth
- * discussing what we'll actually do with them.
+ * The previous implementation largely works, but it's not very smart about 
+ * conditional dependencies.
  */
+interface SignalNode {}
 
-const UNSET = Symbol("UNSET");
-
-export abstract class Reactive<Comparable = unknown> {
-    private static activeConsumer: Reactive | undefined = undefined;
-
-    private clean = false;
-    private version = 0;
-
-    private consumers = new Set<Reactive>();
-    private producers = new Map<Reactive, number>();
-
-    public invalidate(): void {
-        if (this.clean) {
-            this.clean = false;
-            this.notify();
-        }
-    }
-
-    protected maybeUpdate(): void {
-        this.recordConsumption();
-        const prev = Reactive.activeConsumer;
-        Reactive.activeConsumer = this;
-        try {
-            if (this.shouldUpdate()) {
-                this.unlinkProducers();
-                if (this.update()) {
-                    this.notify();
-                    this.incrementVersion();
-                }
-            }
-            this.clean = true;
-        } finally {
-            Reactive.activeConsumer = prev;
-        }
-        this.recordProduction();
-    }
-
-    protected abstract update(): boolean;
-
-    public incrementVersion(): void {
-        this.version++;
-    }
-
-    private recordConsumption(): void {
-        Reactive.activeConsumer && this.consumers.add(Reactive.activeConsumer);
-    }
-
-    private recordProduction(): void {
-        Reactive.activeConsumer?.producers.set(this, this.version);
-    }
-
-    private unlinkProducers(): void {
-        for (const producer of this.producers.keys()) {
-            this.producers.delete(producer);
-            producer.consumers.delete(this);
-        }
-    }
-
-    private shouldUpdate(): boolean {
-        if (this.clean) {
-            return false;
-        }
-
-        if (this.producers.size == 0) {
-            return true;
-        }
-
-        for (
-            const [producer, lastSeenVersion] of this
-                .producers.entries()
-        ) {
-            if (producer.version != lastSeenVersion) {
-                return true;
-            }
-            producer.maybeUpdate();
-            if (producer.version != lastSeenVersion) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private notify(): void {
-        for (const consumer of this.consumers) {
-            consumer.invalidate();
-        }
-    }
+interface Producer<T = unknown> extends SignalNode {
+    value: T;
+    resolveValue(): void;
+    /**
+     * By tracking a version with our Consumers, we can answer "did they compute
+     * without me?"
+     */
+    readonly consumers: Map<Consumer, number>;
+    equals(a: T, b: T): boolean;
+    readonly valueVersion: number;
 }
 
-export abstract class Signal<T = unknown> extends Reactive {
-    protected value: T = UNSET as T;
+interface Consumer extends SignalNode {
+    invalidate(): void;
+    readonly producers: Map<Producer, number>;
+    /**
+     * Like the value version, a Producer can track "did I participate in your 
+     * last compute?"
+     */
+    readonly computeVersion: number;
+}
+
+export class State<T> implements Producer<T> {
+    public readonly consumers = new Map<Consumer, number>();
+    public valueVersion = 0;
 
     constructor(
+        public value: T,
         public readonly equals: (a: T, b: T) => boolean = Object.is,
-    ) {
-        super();
-    }
+    ) {}
 
     public get(): T {
-        this.maybeUpdate();
+        recordAccess(this);
         return this.value;
-    }
-
-    protected override update(): boolean {
-        return this.setIfChanged(this.compute());
-    }
-
-    protected setIfChanged(value: T): boolean {
-        if (this.value == UNSET || !this.equals(value, this.value)) {
-            this.value = value;
-            return true;
-        }
-        return false;
-    }
-
-    protected compute(): T {
-        return this.value;
-    }
-}
-
-export class State<T> extends Signal<T> {
-    constructor(initialValue: T, equals?: (a: T, b: T) => boolean) {
-        super(equals);
-        this.value = initialValue;
     }
 
     public set(value: T): void {
-        if (this.setIfChanged(value)) {
-            this.invalidate();
-            this.incrementVersion();
+        if (setIfWouldChange(this, value)) {
+            ++this.valueVersion;
+            notifyConsumers(this);
         }
     }
-}
-export type WritableSignal<T = unknown> = State<T>;
 
-export class Computed<T> extends Signal<T> {
+    public resolveValue(): void {}
+}
+
+const UNSET = Symbol("UNSET");
+export class Computed<T> implements Producer<T>, Consumer {
+    public readonly consumers = new Map<Consumer, number>();
+    public readonly producers = new Map<Producer, number>();
+    public valueVersion = 0;
+    public computeVersion = 0;
+
+    public value = UNSET as T;
+
+    private stale = true;
+
     constructor(
-        protected override compute: () => T,
-        equals?: (a: T, b: T) => boolean,
-    ) {
-        super(equals);
+        private readonly compute: () => T,
+        public readonly equals: (a: T, b: T) => boolean = Object.is,
+    ) {}
+
+    public get(): T {
+        this.resolveValue();
+        recordAccess(this);
+        return this.value;
+    }
+
+    public resolveValue(): void {
+        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+            const newValue = asActiveConsumer(this, this.compute);
+            setIfWouldChange(this, newValue) && ++this.valueVersion;
+        }
+        this.stale = false;
+    }
+
+    public invalidate(): void {
+        if (this.stale) {
+            return;
+        }
+        this.stale = true;
+        notifyConsumers(this);
     }
 }
-export type ReadonlySignal<T = unknown> = Computed<T>;
 
-/**
- * For the purpose of education, we'll keep this implementation simple.
- *
- * An Effect is a type of Reactive element, just one that doesn't store any
- * values. Instead, an Effect wraps a function that depends on the values of
- * other reactive elements.
- *
- * Instead of updating an internal value, a function will be run.
- *
- * The interesting question is _when_ to run it.
- */
-export class Effect extends Reactive {
-    /**
-     * If we just ran the function immediately, there would be no point
-     * in all of the laziness we've built into this system.
-     *
-     * Instead, invalidating an Effect will add it to a queue.
-     */
-    public static queue = new Set<Effect>();
-    /**
-     * The user of our framework will be responsible for deciding when to
-     * trigger queued effects. That might be on a regular render loop, or
-     * saving changes to a server periodically or after a debounced interval.
-     */
-    public static flush(): void {
-        for (const effect of this.queue) {
-            effect.run();
+function notifyConsumers(producer: Producer): void {
+    for (const consumer of producer.consumers.keys()) {
+        // any time we iterate over Consumers is a good chance to clean up stale 
+        // links
+        !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
+    }
+}
+
+function recordAccess(producer: Producer): void {
+    if (!activeConsumer) {
+        return;
+    }
+
+    activeConsumer.producers.set(producer, producer.valueVersion);
+    // just like the Producer, an access updates the last version seen on the
+    // Consumer 
+    producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
+}
+
+let activeConsumer: Consumer | undefined = undefined;
+function asActiveConsumer<T>(
+    consumer: Consumer | undefined,
+    fn: () => T,
+) {
+    const prev = activeConsumer;
+    activeConsumer = consumer;
+    try {
+        return fn();
+    } finally {
+        activeConsumer = prev;
+    }
+}
+
+function setIfWouldChange<T>(
+    producer: Producer<T>,
+    newValue: T,
+): boolean {
+    if (producer.value == UNSET || !producer.equals(producer.value, newValue)) {
+        producer.value = newValue;
+        return true;
+    }
+    return false;
+}
+
+function anyProducersHaveChanged(consumer: Consumer): boolean {
+    for (const [producer, lastSeenVersion] of consumer.producers.entries()) {
+        // any time we iterate over producers is a good chance to clean up
+        // stale links
+        if (unlinkIfNeeded(consumer, producer)) {
+            continue;
+        }
+
+        if (producer.valueVersion !== lastSeenVersion) {
+            return true;
+        }
+        producer.resolveValue();
+        if (producer.valueVersion !== lastSeenVersion) {
+            return true;
         }
     }
+    return false;
+}
 
-    constructor(private readonly action: () => void) {
-        super();
-        Effect.queue.add(this);
+function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
+    const lastComputeVersion = producer.consumers.get(consumer);
+    if (consumer.computeVersion == lastComputeVersion) {
+        return false; // the link is still good!
     }
 
-    /**
-     * Our effects action incorporates into the existing Reactive infrastructure.
-     */
-    protected override update(): boolean {
-        this.action();
-        return false;
-    }
-
-    /**
-     * ...and as a result, the best way to "run" our effect is to invoke
-     * the Reactive machinery that not only performs our update, _but decides
-     * ultimately whether any update is actually necessary_.
-     *
-     * This is a nice feature to pick up: even effects can be avoided
-     */
-    private run(): void {
-        this.maybeUpdate();
-    }
-
-    public override invalidate(): void {
-        super.invalidate();
-        Effect.queue.add(this);
-    }
+    // else, the link is stale; remove it
+    consumer.producers.delete(producer);
+    producer.consumers.delete(consumer);
+    return true;
 }

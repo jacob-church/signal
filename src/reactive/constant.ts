@@ -8,6 +8,9 @@ import type { ReadonlySignal } from "./types.ts";
 export class Constant<T> implements ReadonlySignal<Readonly<T>> {
     constructor(private readonly value: T) {}
 
+    /**
+     * @see {@link Signal.get}
+     */
     public get(): T {
         return this.value;
     }

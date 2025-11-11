@@ -13,12 +13,18 @@ export class State<T> implements WritableSignal<T> {
         this.node = new StateNode(initialValue, equals);
     }
 
+    /**
+     * @see {@link Signal.get}
+     */
     public get(): T {
         updateWatched(this.node);
         recordAccess(this.node);
         return this.node.value;
     }
 
+    /**
+     * @see {@link WritableSignal.set}
+     */
     public set(newValue: T): void {
         if (setIfWouldChange(this.node, newValue)) {
             ++this.node.valueVersion;
@@ -26,12 +32,18 @@ export class State<T> implements WritableSignal<T> {
         }
     }
 
+    /**
+     * @see {@link WritableSignal.mutate}
+     */
     public mutate(mutatorFn: (prevValue: T) => void): void {
         mutatorFn(this.node.value);
         ++this.node.valueVersion;
         notifyConsumers(this.node);
     }
 
+    /**
+     * @see {@link WritableSignal.update}
+     */
     public update(updaterFn: (prevValue: Readonly<T>) => T): void {
         const newValue = updaterFn(this.node.value);
         this.set(newValue);
@@ -56,8 +68,4 @@ class StateNode<T> implements Producer<T> {
     ) {}
 
     public resolveValue(): void {} // no-op
-
-    public invalidate(): void {
-        notifyConsumers(this);
-    }
 }

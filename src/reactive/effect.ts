@@ -57,7 +57,7 @@ class EffectNode implements Consumer {
         if (this.disposed) {
             return;
         }
-        if (this.producers.size == 0 || anyProducersHaveChanged(this)) {
+        if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
             ++this.computeVersion;
             asActiveConsumer(this, this.effectFn);
             /**

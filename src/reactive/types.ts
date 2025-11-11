@@ -47,10 +47,6 @@ export interface SignalNode {
      * whether or not a Signal is an Effect or transitive dependency of one
      */
     isWatched: boolean;
-    /**
-     * every Signal has a notion of being marked for future re-evaluation
-     */
-    invalidate(): void;
 }
 
 /**
@@ -114,6 +110,10 @@ export interface Consumer extends SignalNode {
      * the `Consumer` from being garbage collected.
      */
     readonly weakRef: WeakRef<Consumer>;
+    /**
+     * every Consumer has a notion of being marked for future re-evaluation
+     */
+    invalidate(): void;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

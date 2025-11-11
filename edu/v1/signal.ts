@@ -7,48 +7,48 @@
  * define a hierarchy of calculations to be evaluated lazily
  */
 
-const UNSET = Symbol("UNSET");
+interface SignalNode {}
 
-export abstract class Signal<T = unknown> {
-    protected _value: T = UNSET as T;
-
-    public get(): T {
-        /**
-         * Computation is only necessary if the inner value hasn't been set
-         * yet. Afterwards, our value is settled, and we don't need to repeat
-         * the computation
-         */
-        if (this._value == UNSET) {
-            this._value = this.compute();
-        }
-        return this._value;
-    }
-
-    /**
-     * Resolving the Signal needs to happen only on demand, so we'll separate
-     * it from the getter.
-     */
-    protected compute(): T {
-        return this._value;
-    }
+interface Producer<T = unknown> extends SignalNode {
+    value: T;
+    resolveValue(): void;
 }
 
-export class State<T> extends Signal<T> {
-    constructor(initialValue: T) {
-        super();
-        this._value = initialValue;
+interface Consumer extends SignalNode {}
+
+export class State<T> implements Producer<T> {
+    constructor(public value: T) {}
+
+    public get(): T {
+        return this.value;
     }
 
     public set(value: T): void {
-        this._value = value;
+        this.value = value;
     }
-}
-export type WritableSignal<T = unknown> = State<T>;
 
-export class Computed<T> extends Signal<T> {
-    // That's it!
-    constructor(protected override compute: () => T) {
-        super();
+    public resolveValue(): void {}
+}
+
+const UNSET = Symbol("UNSET");
+export class Computed<T> implements Producer<T>, Consumer {
+    public value = UNSET as T;
+
+    constructor(private readonly compute: () => T) {}
+
+    public get(): T {
+        this.resolveValue();
+        return this.value;
+    }
+
+    public resolveValue(): void {
+        /**
+         * That's it! We already have lazy computation by virtue of waiting
+         * until get() is called to compute the value, this check makes sure
+         * that our value is also cached for future calls.
+         */
+        if (this.value === UNSET) {
+            this.value = this.compute();
+        }
     }
 }
-export type ReadonlySignal<T = unknown> = Computed<T>;

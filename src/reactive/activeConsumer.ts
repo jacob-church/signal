@@ -65,6 +65,6 @@ export function recordAccess(producer: Producer): void {
     } else {
         producer.unwatched.set(activeConsumer.weakRef, computeVersion);
         // deletion is not necessary, because unwatching only happens
-        // when an Effect is disposed (eagerly)
+        // (eagerly) when an Effect is disposed
     }
 }

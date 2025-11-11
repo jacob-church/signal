@@ -7,142 +7,41 @@
  * This poses a serious problem for garbage collection.
  */
 
-export interface Signal<T> {
-    get(): T;
-}
-export type ReadonlySignal<T> = Signal<T>;
-export interface WritableSignal<T> extends Signal<T> {
-    set(value: T): void;
-    invalidate(): void;
-}
+/**
+ * v5 - Effects
+ *
+ * At this point, we're ready to look as (simple) Effects.
+ * 
+ * What do we do with this data we've calculated?
+ */
 
-interface Reactive {
-    isWatched: boolean;
-    invalidate(): void;
-}
+interface SignalNode {}
 
-interface Producer<T = unknown> extends Reactive {
+interface Producer<T = unknown> extends SignalNode {
     value: T;
-    readonly valueVersion: number;
-    readonly watched: Map<Consumer, number>;
-    readonly unwatchedRefs: Map<number, WeakRef<Consumer>>;
-    readonly unwatchedVersions: Map<number, number>;
-    get(): T;
+    resolveValue(): void;
+    /**
+     * By tracking a version with our Consumers, we can answer "did they compute
+     * without me?"
+     */
+    readonly consumers: Map<Consumer, number>;
     equals(a: T, b: T): boolean;
+    readonly valueVersion: number;
 }
 
-function setIfWouldChange<T>(producer: Producer, value: T): boolean {
-    if (producer.value == UNSET || !producer.equals(producer.value, value)) {
-        producer.value = value;
-        return true;
-    }
-    return false;
-}
-
-let ConsumerId = 0;
-interface Consumer extends Reactive {
-    readonly id: number;
-    readonly weakRef: WeakRef<Consumer>;
-    readonly computeVersion: number;
+interface Consumer extends SignalNode {
+    invalidate(): void;
     readonly producers: Map<Producer, number>;
+    /**
+     * Like the value version, a Producer can track "did I participate in your 
+     * last compute?"
+     */
+    readonly computeVersion: number;
 }
 
-function unlinkIfNeeded(consumer: Consumer, producer: Producer) {
-    const computedVersion = producer.watched.get(consumer) ??
-        producer.unwatchedVersions.get(consumer.id);
-    if (consumer.computeVersion != computedVersion) {
-        producer.watched.delete(consumer);
-        producer.unwatchedRefs.delete(consumer.id);
-        producer.unwatchedVersions.delete(consumer.id);
-        consumer.producers.delete(producer);
-        return true;
-    }
-    return false;
-}
-
-function anyProducersHaveChanged(consumer: Consumer): boolean {
-    for (const [producer, lastSeenVersion] of consumer.producers) {
-        if (unlinkIfNeeded(consumer, producer)) {
-            continue;
-        }
-
-        if (producer.valueVersion != lastSeenVersion) {
-            return true;
-        }
-        asActiveConsumer(undefined, producer.get.bind(producer));
-        if (producer.valueVersion != lastSeenVersion) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function notifyConsumers(producer: Producer): void {
-    for (const consumer of producer.watched.keys()) {
-        if (!unlinkIfNeeded(consumer, producer)) {
-            consumer.invalidate();
-        }
-    }
-    for (const [id, ref] of producer.unwatchedRefs.entries()) {
-        const consumer = ref.deref();
-        if (
-            consumer &&
-            consumer.computeVersion ==
-                producer.unwatchedVersions.get(consumer.id)
-        ) {
-            consumer.invalidate();
-        } else {
-            producer.unwatchedRefs.delete(id);
-            producer.unwatchedVersions.delete(id);
-        }
-    }
-}
-
-let activeConsumer: Consumer | undefined = undefined;
-
-function asActiveConsumer<T>(consumer: Consumer | undefined, fn: () => T) {
-    const prev = activeConsumer;
-    activeConsumer = consumer;
-    try {
-        return fn();
-    } finally {
-        activeConsumer = prev;
-    }
-}
-
-function checkWatched(producer: Producer): void {
-    producer.isWatched ||= !!activeConsumer?.isWatched;
-}
-
-function recordAccess(producer: Producer): void {
-    if (activeConsumer) {
-        activeConsumer.producers.set(producer, producer.valueVersion);
-        if (producer.isWatched) {
-            producer.watched.set(activeConsumer, activeConsumer.computeVersion);
-            producer.unwatchedRefs.delete(activeConsumer.id);
-            producer.unwatchedVersions.delete(activeConsumer.id);
-        } else {
-            producer.unwatchedRefs.set(
-                activeConsumer.id,
-                activeConsumer.weakRef,
-            );
-            producer.unwatchedVersions.set(
-                activeConsumer.id,
-                activeConsumer.computeVersion,
-            );
-            producer.watched.delete(activeConsumer);
-        }
-    }
-}
-
-const UNSET = Symbol("UNSET");
-
-export class State<T> implements WritableSignal<T>, Producer<T> {
+export class State<T> implements Producer<T> {
+    public readonly consumers = new Map<Consumer, number>();
     public valueVersion = 0;
-    public isWatched = false;
-    public readonly watched = new Map<Consumer, number>();
-    public readonly unwatchedRefs = new Map<number, WeakRef<Consumer>>();
-    public readonly unwatchedVersions = new Map<number, number>();
 
     constructor(
         public value: T,
@@ -150,7 +49,6 @@ export class State<T> implements WritableSignal<T>, Producer<T> {
     ) {}
 
     public get(): T {
-        checkWatched(this);
         recordAccess(this);
         return this.value;
     }
@@ -162,25 +60,19 @@ export class State<T> implements WritableSignal<T>, Producer<T> {
         }
     }
 
-    public invalidate(): void {
-        notifyConsumers(this);
-    }
+    public resolveValue(): void {}
 }
 
-export class Computed<T> implements ReadonlySignal<T>, Producer<T>, Consumer {
-    public value = UNSET as T;
+const UNSET = Symbol("UNSET");
+export class Computed<T> implements Producer<T>, Consumer {
+    public readonly consumers = new Map<Consumer, number>();
+    public readonly producers = new Map<Producer, number>();
     public valueVersion = 0;
     public computeVersion = 0;
-    public readonly id = ConsumerId++;
-    public isWatched = false;
-    public readonly weakRef = new WeakRef(this);
 
-    public readonly producers = new Map<Producer, number>();
-    public readonly watched = new Map<Consumer, number>();
-    public readonly unwatchedRefs = new Map<number, WeakRef<Consumer>>();
-    public readonly unwatchedVersions = new Map<number, number>();
+    public value = UNSET as T;
 
-    private dirty = true;
+    private stale = true;
 
     constructor(
         private readonly compute: () => T,
@@ -188,54 +80,140 @@ export class Computed<T> implements ReadonlySignal<T>, Producer<T>, Consumer {
     ) {}
 
     public get(): T {
-        checkWatched(this);
-        if (
-            this.value == UNSET || (this.dirty && anyProducersHaveChanged(this))
-        ) {
-            ++this.computeVersion;
-            const newValue = asActiveConsumer(this, this.compute.bind(this));
-            setIfWouldChange(this, newValue) && ++this.valueVersion;
-        }
-        this.dirty = false;
+        this.resolveValue();
         recordAccess(this);
         return this.value;
     }
 
-    public invalidate(): void {
-        if (!this.dirty) {
-            this.dirty = true;
-            notifyConsumers(this);
+    public resolveValue(): void {
+        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+            const newValue = asActiveConsumer(this, this.compute);
+            setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
+        this.stale = false;
+    }
+
+    public invalidate(): void {
+        if (this.stale) {
+            return;
+        }
+        this.stale = true;
+        notifyConsumers(this);
     }
 }
 
-export class Effect implements Consumer {
-    public readonly id = ConsumerId++;
-    public readonly isWatched = true;
-    public weakRef = new WeakRef(this);
-    public computeVersion = 0;
-    public readonly producers = new Map<Producer, number>();
+function notifyConsumers(producer: Producer): void {
+    for (const consumer of producer.consumers.keys()) {
+        // any time we iterate over Consumers is a good chance to clean up stale 
+        // links
+        !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
+    }
+}
 
+function recordAccess(producer: Producer): void {
+    if (!activeConsumer) {
+        return;
+    }
+
+    activeConsumer.producers.set(producer, producer.valueVersion);
+    // just like the Producer, an access updates the last version seen on the
+    // Consumer 
+    producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
+}
+
+let activeConsumer: Consumer | undefined = undefined;
+function asActiveConsumer<T>(
+    consumer: Consumer | undefined,
+    fn: () => T,
+) {
+    const prev = activeConsumer;
+    activeConsumer = consumer;
+    try {
+        return fn();
+    } finally {
+        activeConsumer = prev;
+    }
+}
+
+function setIfWouldChange<T>(
+    producer: Producer<T>,
+    newValue: T,
+): boolean {
+    if (producer.value == UNSET || !producer.equals(producer.value, newValue)) {
+        producer.value = newValue;
+        return true;
+    }
+    return false;
+}
+
+function anyProducersHaveChanged(consumer: Consumer): boolean {
+    for (const [producer, lastSeenVersion] of consumer.producers.entries()) {
+        // any time we iterate over producers is a good chance to clean up
+        // stale links
+        if (unlinkIfNeeded(consumer, producer)) {
+            continue;
+        }
+
+        if (producer.valueVersion !== lastSeenVersion) {
+            return true;
+        }
+        producer.resolveValue();
+        if (producer.valueVersion !== lastSeenVersion) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
+    const lastComputeVersion = producer.consumers.get(consumer);
+    if (consumer.computeVersion == lastComputeVersion) {
+        return false; // the link is still good!
+    }
+
+    // else, the link is stale; remove it
+    consumer.producers.delete(producer);
+    producer.consumers.delete(consumer);
+    return true;
+}
+
+/**
+ * The central question with effects is "when should they run?"
+ * This is referred to as "scheduling".
+ * 
+ * If they run eagerly, then what was the point of all that laziness we built up?
+ * 
+ * If they don't run at all, then all of this data is useless.
+*/
+export class Effect implements Consumer { 
+    /**
+     * Effects are not marked "stale". Instead, they are set apart to be run
+     * as deemed appropriate.
+     * 
+     * When an Effect is invalidated, it is simply queued to be dealt with later.
+     */
     public static queue = new Set<Effect>();
-
-    public static flush(): void {
-        for (const effect of this.queue) {
-            effect.run();
-        }
-    }
-
-    constructor(private readonly effect: () => void) {
-        Effect.queue.add(this);
-    }
-
-    private run(): void {
-        if (this.producers.size == 0 || anyProducersHaveChanged(this)) {
-            ++this.computeVersion;
-            asActiveConsumer(this, this.effect.bind(this));
-        }
-    }
-
     public invalidate(): void {
         Effect.queue.add(this);
+    }
+
+    constructor(private readonly effectFn: () => void) {
+        // Of course, it needs to run at least once. So it is queued by default.
+        this.invalidate();
+    } 
+
+    public readonly producers = new Map<Producer, number>();
+    public computeVersion = 0;
+
+    /**
+     * Running an Effect is subject to all the same quesiness--we like to avoid
+     * doing work when we don't have to, So we check for meaningful changes
+     * before continuing.
+     */
+    public run(): void {
+        if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
+            ++this.computeVersion;
+            asActiveConsumer(this, this.effectFn);
+        }
     }
 }
