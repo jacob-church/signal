@@ -2,7 +2,7 @@
  * v5 - Effects
  *
  * At this point, we're ready to look as (simple) Effects.
- * 
+ *
  * What do we do with this data we've calculated?
  */
 
@@ -24,7 +24,7 @@ interface Consumer extends SignalNode {
     invalidate(): void;
     readonly producers: Map<Producer, number>;
     /**
-     * Like the value version, a Producer can track "did I participate in your 
+     * Like the value version, a Producer can track "did I participate in your
      * last compute?"
      */
     readonly computeVersion: number;
@@ -77,7 +77,10 @@ export class Computed<T> implements Producer<T>, Consumer {
     }
 
     public resolveValue(): void {
-        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+        if (
+            this.value === UNSET ||
+            (this.stale && anyProducersHaveChanged(this))
+        ) {
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -95,7 +98,7 @@ export class Computed<T> implements Producer<T>, Consumer {
 
 function notifyConsumers(producer: Producer): void {
     for (const consumer of producer.consumers.keys()) {
-        // any time we iterate over Consumers is a good chance to clean up stale 
+        // any time we iterate over Consumers is a good chance to clean up stale
         // links
         !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
     }
@@ -108,7 +111,7 @@ function recordAccess(producer: Producer): void {
 
     activeConsumer.producers.set(producer, producer.valueVersion);
     // just like the Producer, an access updates the last version seen on the
-    // Consumer 
+    // Consumer
     producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
 }
 
@@ -171,16 +174,16 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
 /**
  * The central question with effects is "when should they run?"
  * This is referred to as "scheduling".
- * 
+ *
  * If they run eagerly, then what was the point of all that laziness we built up?
- * 
+ *
  * If they don't run at all, then all of this data is useless.
-*/
-export class Effect implements Consumer { 
+ */
+export class Effect implements Consumer {
     /**
      * Effects are not marked "stale". Instead, they are set apart to be run
      * as deemed appropriate.
-     * 
+     *
      * When an Effect is invalidated, it is simply queued to be dealt with later.
      */
     public static queue = new Set<Effect>();
@@ -191,7 +194,7 @@ export class Effect implements Consumer {
     constructor(private readonly effectFn: () => void) {
         // Of course, it needs to run at least once. So it is queued by default.
         this.invalidate();
-    } 
+    }
 
     public readonly producers = new Map<Producer, number>();
     public computeVersion = 0;

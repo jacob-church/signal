@@ -2,7 +2,6 @@ import { assert } from "../lib/test.ts";
 import { computed, effect, state } from "./interface.ts";
 // import { Effect } from "./signal.ts";
 
-
 Deno.test("should not track dependencies that aren't currently relevant", () => {
     const useA = state(true);
     const a = state("green");
@@ -26,7 +25,6 @@ Deno.test("should not track dependencies that aren't currently relevant", () => 
         "change to untracked dependency shouldn't cause recompute",
     );
 });
-
 
 // Deno.test("basic effects", () => {
 //     const value = state(0);

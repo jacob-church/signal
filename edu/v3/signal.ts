@@ -15,7 +15,7 @@ interface Producer<T = unknown> extends SignalNode {
      */
     equals(a: T, b: T): boolean;
     /**
-     * A very cheap and fast way to track "has this Producer changed" is to 
+     * A very cheap and fast way to track "has this Producer changed" is to
      * track the last version of the value it produced and compare those.
      */
     readonly valueVersion: number;
@@ -25,7 +25,7 @@ interface Consumer extends SignalNode {
     invalidate(): void;
     /**
      * By tracking our Producers directly, along with the last valueVersion we
-     * saw from them, we can make a cheap comparison to see if anything has 
+     * saw from them, we can make a cheap comparison to see if anything has
      * changed
      */
     readonly producers: Map<Producer, number>;
@@ -87,10 +87,13 @@ export class Computed<T> implements Producer<T>, Consumer {
     public resolveValue(): void {
         /**
          * What does it mean to say "we don't need to recompute"?
-         * Well, if our Computed value is a pure function, it's as simple as 
+         * Well, if our Computed value is a pure function, it's as simple as
          * "have any of our inputs changed"
          */
-        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+        if (
+            this.value === UNSET ||
+            (this.stale && anyProducersHaveChanged(this))
+        ) {
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -124,7 +127,7 @@ function recordAccess(producer: Producer): void {
         return;
     }
 
-    // when creating the link, it's a good opportunity to record the 
+    // when creating the link, it's a good opportunity to record the
     // valueVersion for future comparisons.
     activeConsumer.producers.set(producer, producer.valueVersion);
     producer.consumers.add(activeConsumer);
@@ -150,9 +153,9 @@ function setIfWouldChange<T>(
 ): boolean {
     /**
      * An UNSET value should always change, and is not safe to test for equality.
-     * 
-     * The Producer defines it's notion of equality for its values. 
-     */    
+     *
+     * The Producer defines it's notion of equality for its values.
+     */
     if (producer.value == UNSET || !producer.equals(producer.value, newValue)) {
         producer.value = newValue;
         return true;

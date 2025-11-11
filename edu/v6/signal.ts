@@ -69,7 +69,10 @@ export class Computed<T> implements Producer<T>, Consumer {
     }
 
     public resolveValue(): void {
-        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+        if (
+            this.value === UNSET ||
+            (this.stale && anyProducersHaveChanged(this))
+        ) {
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -153,7 +156,7 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
     return true;
 }
 
-export class Effect implements Consumer { 
+export class Effect implements Consumer {
     public static queue = new Set<Effect>();
     public invalidate(): void {
         Effect.queue.add(this);
@@ -161,11 +164,11 @@ export class Effect implements Consumer {
 
     constructor(private readonly effectFn: () => void) {
         this.invalidate();
-    } 
+    }
 
     public readonly producers = new Map<Producer, number>();
     public computeVersion = 0;
-    
+
     public run(): void {
         if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
             ++this.computeVersion;

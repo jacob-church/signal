@@ -70,11 +70,11 @@ export class Computed<T> implements Producer<T>, Consumer {
          */
         if (this.value === UNSET || this.stale) {
             /**
-             * Whenever we run "compute", this Consumer becomes the 
+             * Whenever we run "compute", this Consumer becomes the
              * activeConsumers so that any Producers it accesses can
              * record the dependency.
-             * 
-             * (compute is not bound because it doesn't need to be; it came from 
+             *
+             * (compute is not bound because it doesn't need to be; it came from
              * an external source, and should maintain whatever "this" it had.)
              */
             this.value = asActiveConsumer(this, this.compute);
@@ -90,7 +90,6 @@ export class Computed<T> implements Producer<T>, Consumer {
         notifyConsumers(this);
     }
 }
-
 
 function notifyConsumers(producer: Producer): void {
     for (const consumer of producer.consumers) {

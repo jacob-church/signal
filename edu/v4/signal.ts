@@ -1,7 +1,7 @@
 /**
  * v4 - Smarter reactivity
  *
- * The previous implementation largely works, but it's not very smart about 
+ * The previous implementation largely works, but it's not very smart about
  * conditional dependencies.
  */
 interface SignalNode {}
@@ -22,7 +22,7 @@ interface Consumer extends SignalNode {
     invalidate(): void;
     readonly producers: Map<Producer, number>;
     /**
-     * Like the value version, a Producer can track "did I participate in your 
+     * Like the value version, a Producer can track "did I participate in your
      * last compute?"
      */
     readonly computeVersion: number;
@@ -75,7 +75,10 @@ export class Computed<T> implements Producer<T>, Consumer {
     }
 
     public resolveValue(): void {
-        if (this.value === UNSET || (this.stale && anyProducersHaveChanged(this))) {
+        if (
+            this.value === UNSET ||
+            (this.stale && anyProducersHaveChanged(this))
+        ) {
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -93,7 +96,7 @@ export class Computed<T> implements Producer<T>, Consumer {
 
 function notifyConsumers(producer: Producer): void {
     for (const consumer of producer.consumers.keys()) {
-        // any time we iterate over Consumers is a good chance to clean up stale 
+        // any time we iterate over Consumers is a good chance to clean up stale
         // links
         !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
     }
@@ -106,7 +109,7 @@ function recordAccess(producer: Producer): void {
 
     activeConsumer.producers.set(producer, producer.valueVersion);
     // just like the Producer, an access updates the last version seen on the
-    // Consumer 
+    // Consumer
     producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
 }
 

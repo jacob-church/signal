@@ -1,4 +1,3 @@
-
 # Memory Management
 
 <link to Garbage Collection>
