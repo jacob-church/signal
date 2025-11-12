@@ -90,7 +90,7 @@ their next read:
 const num = state(0);
 const plusOne = computed(() => num.get() + 1);
 console.log(plusOne.get()); // 1
-plusOne.set(5);
+num.set(5);
 console.log(plusOne.get()); // 6
 ```
 
