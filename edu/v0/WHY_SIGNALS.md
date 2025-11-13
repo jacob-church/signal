@@ -2,21 +2,17 @@
 
 ## Events
 
-(TODO: example code)
-
 Before Signals, the most obvious way to deal with **reactive state** would be to
 use some form of Events.
 
 ```typescript
 ...
-eventHub.emit('someEvent', optionalPayload)
-...
-
+eventHub.emit('someEvent', optionalPayload /* some piece of data */);
 ...
 // somewhere else...
 eventHub.listen('someEvent', (payload) => {
     // do things with that data
-})
+});
 ...
 ```
 
@@ -34,8 +30,8 @@ may well find more than one, and each begins manipulating other data in reaction
 to the original change. It may be difficult to tell in what order these
 manipulations take place, and it's certainly difficult to _guarantee_ that none
 of them can step on each other's toes. These problems are inherent to the
-**imperative** style of this kind of code. (Not that these aren't solvable
-problems, but it's _your_ job to solve them.)
+**imperative** style of this kind of code. (Not that these aren't unsolvable
+problems, but it is _your_ job to solve them.)
 
 In addition, these calculations are **eager**. As _soon_ as an event is fired,
 you start processing. If a user clicks that button repeatedly, or changes come
@@ -46,10 +42,17 @@ this stuff).
 
 ## Signals
 
-(TODO: example code)
-
 Contrast this with Signals. Effectively, they're just an abstraction around
 these common needs when dealing with **reactive state management**.
+
+```typescript
+const dependency = state("some piece of data");
+
+const dependent = computed(() => {
+    const data = dependency.get();
+    return someFunctionOf(data);
+});
+```
 
 Because Signals are **lazy**, you guarantee that data changes aren't calculated
 until they're _needed_. Because they're **cached**, you gaurantee that changes
@@ -59,4 +62,5 @@ only what your data "is", and what other data it depends on. Even if multiple
 Signals share dependencies, all of those values will be calculated _in the order
 they're needed_--you don't have to worry about proper sequencing at all.
 
-It turns out these are great guarantees for writing web apps at scale.
+It turns out these are great guarantees for writing stateful web apps of
+sufficient complexity.

@@ -11,6 +11,15 @@ still pretty slow.
 This is the lowest hanging fruit: once part of the graph is stale, it does no
 good to receive further notifications.
 
+```typescript
+// see Computed.invalidate
+if (this.stale) {
+    return;
+}
+this.stale = true;
+notifyConsumers(this);
+```
+
 Consider: there are only two ways for a `Computed` to become `stale`. Either it
 was the subject of a previous notification (in which case it diligently informed
 everyone up the graph as well) and hasn't been recomputed yet (which means
@@ -30,6 +39,22 @@ the framework should regard this as a no-op, and nothing should recompute.
 To do this, we need a way for a `Producer` to check if a _new_ value is
 functionally the same as its _current_ value.
 
+```typescript
+// see State.set
+if (setIfWouldChange(this, newValue)) {
+    notifyConsumers(this);
+}
+...
+
+function setIfWouldChange<T>(producer: Producer<T>, value: T): boolean {
+    if (producer.value === UNSET || !producer.equals(producer.value, value)) {
+        producer.value = value;
+        return true;
+    }
+    return false;
+}
+```
+
 ### Congifuring equality
 
 Equality is an odd duck. Initially it seems simple, but it quickly becomes less
@@ -41,6 +66,13 @@ The answer is "it depends".
 Performance is a high priority for Signals, and equality can be a cumbersome
 operation if the things we want to compare are big. Therefore, it's ideal to
 expose equality as a **configurable option**.
+
+```typescript
+class State<T> implements Producer<T> {
+    constructor(public value: T, equals: (a: T, b: T) => boolean = Object.is) {}
+    ...
+}
+```
 
 Some users may decide that their use-case calls for deep equality checks. Some
 may decide that the performance hit won't be worth it, and a simpler comparison
@@ -68,9 +100,18 @@ same.
 This means that if the "inputs" to our `Computed` haven't changed, _we don't
 have to recompute_.
 
+```typescript
+// see Computed.resolveValue
+if (this.value === UNSET || (this.stale && anyProducersHaveChange(this))) {
+    this.value = asActiveConsumer(this, this.compute);
+}
+this.stale = false;
+```
+
 Evaluating this means tracking a Consumer's Producers, and since we're already
 linking in the other direction, thats not hard to achieve. However, once we have
 those links, we need a cheap and fast way (performance!) to check if those
+Producers are holding a meaningful change to their values.
 
 ### Cheap comparisons
 
@@ -84,9 +125,37 @@ meaningfully different since the last time I saw it". To do that we don't
 necessarily need to compare outputs (or store potentially problematic references
 to old data). Instead, we can just track a _version number_.
 
+```typescript
+interface Producer<T> {
+    value: T;
+    valueVersion: number;
+    ...
+}
+```
+
 Each producer has a number, alongside it's value. When the value changes, _the
 number changes_. Consumers can store this number without hassle, and now we have
 a cheap heuristic to verify inputs.
+
+```typescript
+// see State.set
+if (setIfWouldChange(this, value)) {
+    // see also Computed.resolveValue
+    ++this.valueVersion;
+    notifyConsumers(this);
+}
+
+...
+
+function anyProducersHaveChanged(consumer: Consumer) {
+    for (const [producer, lastSeenVersion] of consumer.producers.entries()) {
+        if (producer.valueVersion != lastSeenVersion) {
+            return true;
+        }
+    }
+    return false;
+}
+```
 
 ### Uncertainty
 
@@ -97,6 +166,21 @@ read. Well, since its going to have to do that anyways (and we cache values,
 remember) theres no harm in forcing it to change _before_ calling `compute`.
 Then we can say with absolute certainty whether or not the dependency has
 changed in any meaningful way.
+
+```typescript
+function anyProducersHaveChanged(consumer: Consumer) {
+    for (const [producer, lastSeenVersion] of consumer.producers.entries()) {
+        if (producer.valueVersion != lastSeenVersion) {
+            return true;
+        }
+        producer.resolveValue();
+        if (producer.valueVersion != lastSeenVersion) {
+            return true;
+        }
+    }
+    return false;
+}
+```
 
 #### Wasteful computes?
 

@@ -96,10 +96,23 @@ approach something that _looks_ like it ought to work.
 Imagine that we split up the implementation of our Signals. The inner kernel is
 the _bare_ Signal. The pieces that participate in the reactive framework. The
 outer shell is the public interface, the Signal object with it's getter (and
-setter). If our `Consumer` links only point to the _inner_ part of a Signal,
-then the _outer_ part can go out of scope and get garbage collected, right?
-Then, we just register the _outer_ part, with a callback to clean up dispose
-references to the _inner_ portion!
+setter).
+
+```typescript
+export class State<T> implements WritableSignal<T> {
+    private node: StateNode;
+    ...
+}
+
+class StateNode<T> implements Producer<T> {
+    ...
+}
+```
+
+If our `Consumer` links only point to the _inner_ part of a Signal, then the
+_outer_ part can go out of scope and get garbage collected, right? Then, we just
+register the _outer_ part, with a callback to clean up dispose references to the
+_inner_ portion!
 
 Unfortunately, this doesn't quite work, and the problem comes down to the
 `compute` function: it's held inside of the reactive framework, and it _holds_
@@ -108,6 +121,10 @@ references to things in it's function closure.
 Look at this simple, reasonable example:
 
 ```typescript
+class Container {
+    private s = state(0);
+    private c = computed(() => this.s.get());
+}
 ```
 
 It's subtle, but this `Computed` is tied to the `Container`. Ideally, the
@@ -150,6 +167,20 @@ With this in place, we need only to make sure we store references to watched and
 unwatched Consumers correctly in each Producer.
 
 ```typescript
+function recordAccess(producer: Producer): void {
+    if (!activeConsumer) {
+        return;
+    }
+
+    activeConsumer.producers.set(producer, producer.valueVersion);
+    const computeVersion = activeConsumer.computeVersion;
+    if (activeConsumer.isWatched) {
+        producer.watched.set(activeConsumer, computeVersion);
+        producer.unwatched.delete(activeConsumer.weakRef);
+    } else {
+        producer.unwatched.set(activeConsumer.weakRef, computeVersion);
+    }
+}
 ```
 
 ### Un-watching
@@ -165,6 +196,20 @@ watched set to the unwatched set in each of it's Producers. If a Producer no
 longer has any "watchers", mark it unwatched and recurse.
 
 ```typescript
+function unwatchProducers(consumer: Consumer): void {
+    for (const producer of consumer.producers.keys()) {
+        if (unlinkIfNeeded(consumer, producer) || !producer.isWatched) {
+            continue;
+        }
+
+        producer.watched.delete(consumer);
+        producer.unwatched.set(consumer.weakRef, consumer.computeVersion);
+        if (producer.watched.size === 0) {
+            producer.isWatched = false;
+            isConsumer(producer) && unwatchProducers(producer);
+        }
+    }
+}
 ```
 
 (TODO: image)
@@ -172,10 +217,21 @@ longer has any "watchers", mark it unwatched and recurse.
 #### Effects and conditional logic
 
 There is _one more_ place we have to be mindful of unwatching, and it's a little
-subtle. Thinking back to [SMARTER_REACTIVITY.md], conditional logic in a
-Signal's function can change the Signals that are depended on.
+subtle. Thinking back to [SMARTER_REACTIVITY.md](../v4/SMARTER_REACTIVITY.md),
+conditional logic in a Signal's function can change the Signals that are
+depended on.
 
 ```typescript
+const useA = state(true);
+const a = computed(...);
+const b = computed(...);
+effect(() => {
+    if (useA.get()) {
+        console.log(a.get());
+    } else {
+        console.log(b.get());
+    }
+});
 ```
 
 This means that an Effect can _lose sight_ of some of it's Producers, and thus
@@ -184,3 +240,22 @@ responsible thing to do is to make sure those dependencies are unwatched when
 the dependencies are dropped. (There's a clue that we should do this in the
 code: whenever we delete a watched link, we might find that we don't have any
 left!)
+
+```typescript
+function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
+    const lastComputeVersion = producer.watched.get(consumer);
+    if (consumer.computeVersion == lastComputeVersion) {
+        return false;
+    }
+
+    consumer.producers.delete(producer);
+    producer.watched.delete(consumer);
+    producer.unwatched.set(consumer.weakRef, lastComputeVersion!);
+
+    if (producer.isWatched && producer.watched.size === 0) {
+        producer.isWatched = false;
+        isConsumer(producer) && unwatchProducers(producer);
+    }
+    return true;
+}
+```

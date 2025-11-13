@@ -40,3 +40,8 @@ export function computed<T>(
  * coming.)
  */
 export function effect(fn: () => void) {}
+
+/**
+ * Runs all scheduled effects.
+ */
+export function runEffects(): void {}

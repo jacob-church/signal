@@ -24,6 +24,13 @@ provide us with consistent values).
 
 So, instead, we put the effect in a queue for later.
 
+```typescript
+// see Effect.invalidate
+public invalidate(): void {
+    Effect.queue.add(this);
+}
+```
+
 ## Trust the user (or the framework)
 
 From there, deciding when to run _queued_ effects is ultimately a user (or
@@ -34,5 +41,3 @@ rendering to a canvas? Then flush the queue on every animation frame (or enough
 of them to meet a target framerate). Is it saving changes to your backend? Then
 flush some unit of time after the last user input. The answer will depend on
 your particular needs.
-
-(TODO: code samples)

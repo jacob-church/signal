@@ -4,7 +4,16 @@ Our implementation so far is correct, and reasonably fast, but it hides an
 annoying behavior. Consider an example:
 
 ```typescript
-(see ./test.ts)
+const useA = state(true);
+const a = state("a");
+const b = state("b");
+computed(() => {
+    if (useA.get()) {
+        return a.get();
+    } else {
+        return b.get();
+    }
+});
 ```
 
 When a `Computed` function contains branching logic, that means it might be
@@ -33,6 +42,14 @@ change to a Signal dependency could lead to dropping dependencies on others.)
 To do this we can borrow a trick from the last step in our implementation:
 version numbers.
 
+```typescript
+interface Consumer {
+    ...
+    computeVersion: number;
+    ...
+}
+```
+
 Think about it, what better way to sync between a Producer and a Consumer than
 "I know I participated in the last call to `compute` because I ~~got the t-shirt
 at the merch table~~ got the number you handed out to everyone who showed up.
@@ -40,3 +57,16 @@ at the merch table~~ got the number you handed out to everyone who showed up.
 With this version number in hand, its really easy for Producers and Consumers to
 avoid needless updating: don't notify Consumers if our link is stale. Don't
 check changes to Producers if our link is stale.
+
+```typescript
+function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
+    const lastComputeVersion = producer.consumers.get(consumer);
+    if (consumer.computeVersion == lastComputeVersion) {
+        return false;
+    }
+
+    consumer.producers.delete(producer);
+    producer.consumers.delete(consumer);
+    return true;
+}
+```

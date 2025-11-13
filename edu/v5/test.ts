@@ -2,40 +2,21 @@ import { assert } from "../lib/test.ts";
 import { computed, effect, state } from "./interface.ts";
 import { Effect } from "./signal.ts";
 
-Deno.test("unwatched signals should still yield correct values", () => {
-    const leaf = state(0);
-    const left = computed(() => leaf.get());
-    effect(() => left.get());
+Deno.test("basic effects", () => {
+    const value = state(0);
+    const indirect = computed(() => value.get());
+    const out: number[] = [];
+    effect(() => out.push(indirect.get()));
 
-    const right = computed(() => leaf.get());
-    const unwatched = computed(() => right.get());
-
-    Effect.flush(); // now we're "watching"
-    leaf.set(1); // now everyone should be notified
-    assert(unwatched.get() == 1, "unwatched signal should still be correct");
-});
-
-Deno.test("unwatched signals are still lazy", () => {
-    const leaf = state(1);
-    let count1 = 0;
-    const abs = computed(() => {
-        count1++;
-        return Math.abs(leaf.get());
-    });
-    let count2 = 0;
-    const top = computed(() => {
-        count2++;
-        return abs.get();
-    });
-
-    top.get();
-    assert(count1 == 1 && count2 == 1, "first compute");
-
-    leaf.set(1);
-    top.get();
-    assert(count1 == 1 && count2 == 1, "still lazy and cached");
-
-    leaf.set(-1);
-    top.get();
-    assert(count1 == 2 && count2 == 1, "still lazy and cautious");
+    assert(out.length == 0, "effect does not execute on initialization");
+    Effect.flush();
+    assert(out.length == 1, "effect should enqueue on initialization");
+    Effect.flush();
+    assert(out.length == 1, "queue should clear on flush");
+    value.set(1);
+    Effect.flush();
+    assert(
+        out.length == 2,
+        "invalidating a dependency should enqueue the effect",
+    );
 });
