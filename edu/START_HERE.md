@@ -15,3 +15,13 @@ follows:
 - [`v4`](./v4/EFFECTS.md) adds schedulable side-effects
 - [`v5`](./v4/MEMORY_MANAGEMENT.md) discusses garbage collection concerns and a
   simple approach to responsible memory management.
+
+## How to use this guide
+
+The subdirectories linked above represent an incremental implementation of
+Signals. Each comes with a **markdown file** to orient you to the things being
+implemented, the **actual implementation** code (filled with comments next to
+the new stuff), and some **test cases** demonstrating the new guarantees.
+
+For the best experience, try opening the markdown and code side by side and
+comparing what you read to whats changing in the code.

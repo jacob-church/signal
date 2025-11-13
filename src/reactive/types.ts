@@ -116,6 +116,11 @@ export interface Consumer extends SignalNode {
     invalidate(): void;
 }
 
+// deno-lint-ignore no-explicit-any
+export function isConsumer(node: any): node is Consumer {
+    return node.producers instanceof Map;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 export type EqualsFn<T> = (a: T, b: T) => boolean;

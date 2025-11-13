@@ -6,12 +6,15 @@
  *
  * This poses a serious problem for garbage collection.
  */
-interface SignalNode {}
+interface SignalNode {
+    isWatched: boolean;
+}
 
 interface Producer<T = unknown> extends SignalNode {
     value: T;
     resolveValue(): void;
-    readonly consumers: Map<Consumer, number>;
+    readonly watched: Map<Consumer, number>;
+    readonly unwatched: Map<WeakRef<Consumer>, number>;
     equals(a: T, b: T): boolean;
     readonly valueVersion: number;
 }
@@ -20,10 +23,13 @@ interface Consumer extends SignalNode {
     invalidate(): void;
     readonly producers: Map<Producer, number>;
     readonly computeVersion: number;
+    readonly weakRef: WeakRef<Consumer>;
 }
 
 export class State<T> implements Producer<T> {
-    public readonly consumers = new Map<Consumer, number>();
+    public isWatched = false;
+    public readonly watched = new Map<Consumer, number>();
+    public readonly unwatched = new Map<WeakRef<Consumer>, number>();
     public valueVersion = 0;
 
     constructor(
@@ -32,6 +38,7 @@ export class State<T> implements Producer<T> {
     ) {}
 
     public get(): T {
+        updateWatched(this);
         recordAccess(this);
         return this.value;
     }
@@ -48,10 +55,13 @@ export class State<T> implements Producer<T> {
 
 const UNSET = Symbol("UNSET");
 export class Computed<T> implements Producer<T>, Consumer {
-    public readonly consumers = new Map<Consumer, number>();
+    public isWatched = false;
+    public readonly watched = new Map<Consumer, number>();
+    public readonly unwatched = new Map<WeakRef<Consumer>, number>();
     public readonly producers = new Map<Producer, number>();
     public valueVersion = 0;
     public computeVersion = 0;
+    public readonly weakRef = new WeakRef(this);
 
     public value = UNSET as T;
 
@@ -63,6 +73,7 @@ export class Computed<T> implements Producer<T>, Consumer {
     ) {}
 
     public get(): T {
+        updateWatched(this);
         this.resolveValue();
         recordAccess(this);
         return this.value;
@@ -89,7 +100,7 @@ export class Computed<T> implements Producer<T>, Consumer {
 }
 
 function notifyConsumers(producer: Producer): void {
-    for (const consumer of producer.consumers.keys()) {
+    for (const consumer of producer.watched.keys()) {
         !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
     }
 }
@@ -100,7 +111,15 @@ function recordAccess(producer: Producer): void {
     }
 
     activeConsumer.producers.set(producer, producer.valueVersion);
-    producer.consumers.set(activeConsumer, activeConsumer.computeVersion);
+    const computeVersion = activeConsumer.computeVersion;
+    /** */
+    if (activeConsumer.isWatched) {
+        producer.watched.set(activeConsumer, computeVersion);
+        /** */
+        producer.unwatched.delete(activeConsumer.weakRef);
+    } else {
+        producer.unwatched.set(activeConsumer.weakRef, computeVersion);
+    }
 }
 
 let activeConsumer: Consumer | undefined = undefined;
@@ -146,14 +165,48 @@ function anyProducersHaveChanged(consumer: Consumer): boolean {
 }
 
 function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
-    const lastComputeVersion = producer.consumers.get(consumer);
+    const lastComputeVersion = producer.watched.get(consumer);
     if (consumer.computeVersion == lastComputeVersion) {
         return false;
     }
 
     consumer.producers.delete(producer);
-    producer.consumers.delete(consumer);
+    producer.watched.delete(consumer);
+    producer.unwatched.set(consumer.weakRef, lastComputeVersion!);
+
+    if (producer.isWatched && producer.watched.size === 0) {
+        producer.isWatched = false;
+        isConsumer(producer) && unwatchProducers(producer);
+    }
     return true;
+}
+
+function updateWatched(producer: Producer): void {
+    if (activeConsumer) {
+        /** */
+        producer.isWatched ||= activeConsumer.isWatched;
+    }
+}
+
+function isConsumer(node: SignalNode): node is Consumer {
+    return (node as Consumer).producers instanceof Map;
+}
+
+function unwatchProducers(consumer: Consumer): void {
+    for (const producer of consumer.producers.keys()) {
+        if (unlinkIfNeeded(consumer, producer) || !producer.isWatched) {
+            continue;
+        }
+
+        producer.watched.delete(consumer);
+        // because we checked the link already, we know this version is correct
+        producer.unwatched.set(consumer.weakRef, consumer.computeVersion);
+        /** */
+        if (producer.watched.size === 0) {
+            producer.isWatched = false;
+            isConsumer(producer) && unwatchProducers(producer);
+        }
+    }
 }
 
 export class Effect implements Consumer {
@@ -162,12 +215,21 @@ export class Effect implements Consumer {
         Effect.queue.add(this);
     }
 
+    public static flush(): void {
+        for (const effect of Effect.queue) {
+            effect.run();
+        }
+        Effect.queue.clear();
+    }
+
     constructor(private readonly effectFn: () => void) {
         this.invalidate();
     }
 
     public readonly producers = new Map<Producer, number>();
     public computeVersion = 0;
+    public isWatched = true;
+    public readonly weakRef = new WeakRef(this);
 
     public run(): void {
         if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {

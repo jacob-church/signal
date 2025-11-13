@@ -1,5 +1,10 @@
 import { computed, effect, flushEffectQueue, state } from "../interface.ts";
 import { assert } from "./lib.ts";
+import {
+    SignalChangedWhileComputingError,
+    SignalCircularDependencyError,
+} from "../reactive/error.ts";
+import type { Signal } from "../reactive/types.ts";
 
 Deno.test("lazy, cached", () => {
     let count = 0;
@@ -130,5 +135,80 @@ Deno.test("should track unwatched changes", () => {
     assert(
         unwatched.get() == 1,
         "unwatched effect should still produce correct value",
+    );
+});
+
+Deno.test("circular signal dependencies should error", () => {
+    let a: Signal<number>;
+    a = computed(() => a.get() + 1);
+    let error = false;
+    try {
+        a.get();
+    } catch (e: unknown) {
+        if (e instanceof SignalCircularDependencyError) {
+            error = true;
+        }
+    }
+    assert(error, "should have thrown SignalChangedWhileComputingError");
+});
+
+Deno.test("invalidating a Signal dependency inside an effect should error", () => {
+    const a = state(0);
+
+    const b = computed(() => a.get());
+
+    effect(() => {
+        b.get();
+        a.set(1);
+    });
+    let error = false;
+    try {
+        flushEffectQueue();
+    } catch (e: unknown) {
+        if (e instanceof SignalChangedWhileComputingError) {
+            error = true;
+        }
+    }
+    assert(error, "should have thrown SignalChangedWhileComputingError");
+});
+
+Deno.test("effects with conditional branches cause nodes to become unwatched", () => {
+    const toggle = state(true);
+
+    const leftRoot = state(1);
+    const left = computed(() => leftRoot.get());
+
+    const rightRoot = state("a");
+    const right = computed(() => rightRoot.get());
+
+    const out: any[] = [];
+    effect(() => {
+        if (toggle.get()) {
+            out.push(left.get());
+        } else {
+            out.push(right.get());
+        }
+    });
+
+    flushEffectQueue();
+
+    assert((leftRoot as any).node.isWatched == true, "left should be watched");
+    assert(
+        (rightRoot as any).node.isWatched == false,
+        "right should be unwatched",
+    );
+
+    toggle.set(false);
+    flushEffectQueue();
+
+    assert(
+        (leftRoot as any).node.isWatched == true,
+        "left is not unwatched until links are cleaned up",
+    );
+
+    leftRoot.set(2);
+    assert(
+        (leftRoot as any).node.isWatched == false,
+        "left should detect unwatched on notify",
     );
 });

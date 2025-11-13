@@ -191,6 +191,19 @@ export class Effect implements Consumer {
         Effect.queue.add(this);
     }
 
+    /**
+     * When to run Effects is ultimately a user or framework decision.
+     *
+     * So we expose a method to run and clear the queue, when desired, and
+     * let them figure it out.
+     */
+    public static flush(): void {
+        for (const effect of Effect.queue) {
+            effect.run();
+        }
+        Effect.queue.clear();
+    }
+
     constructor(private readonly effectFn: () => void) {
         // Of course, it needs to run at least once. So it is queued by default.
         this.invalidate();

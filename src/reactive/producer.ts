@@ -8,15 +8,15 @@ import type { Producer } from "./types.ts";
  * value. If so, the value is stored, and the function returns `true`,
  */
 export function setIfWouldChange<T>(producer: Producer<T>, value: T): boolean {
-    /**
-     * The Producer itself should be configured to determine what constitutes a
-     * "meaningful change".
-     *
-     * Running the equality function without an `activeConsumer` ensures
-     * that Signal dependencies aren't recorded by this function.
-     */
     if (
         producer.value != UNSET &&
+        /**
+         * The Producer itself should be configured to determine what constitutes a
+         * "meaningful change".
+         *
+         * Running the equality function without an `activeConsumer` ensures
+         * that Signal dependencies aren't recorded by this function.
+         */
         asActiveConsumer(
             undefined,
             producer.equals.bind(undefined, producer.value, value),

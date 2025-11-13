@@ -2,6 +2,7 @@ import { asActiveConsumer } from "./activeConsumer.ts";
 import { anyProducersHaveChanged } from "./consumer.ts";
 import type { Consumer, Producer } from "./types.ts";
 import { unwatchProducers } from "./watch.ts";
+import { SignalChangedWhileComputingError } from "./error.ts";
 
 /**
  * A schedulable side-effect.
@@ -42,11 +43,11 @@ class EffectNode implements Consumer {
         number
     >();
 
-    public readonly isWatched = true;
-    // Because isWatched is always true, this is never actually needed.
-    declare public readonly weakRef: WeakRef<Consumer>;
+    public isWatched = true;
+    public readonly weakRef = new WeakRef(this);
 
     private disposed?: true;
+    private computing = false;
 
     constructor(
         private readonly effectFn: () => void,
@@ -59,8 +60,19 @@ class EffectNode implements Consumer {
         }
         if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
             ++this.computeVersion;
-            asActiveConsumer(this, this.effectFn);
-            /**
+            this.computing = true;
+            try {
+                asActiveConsumer(this, this.effectFn);
+            } catch (e) {
+                --this.computeVersion;
+                throw e;
+            } finally {
+                this.computing = false;
+            }
+            /**nstanceof SignalChangedWhileComputingError) {
+                error = true;
+
+        }
              * If there are still no Producer dependencies after running this
              * Effect as the activeConsumer, there is no reason to model this
              * function as an effect.
@@ -77,6 +89,9 @@ class EffectNode implements Consumer {
         if (this.disposed) {
             return;
         }
+        if (this.computing) {
+            throw new SignalChangedWhileComputingError();
+        }
         this.enqueue(this);
     }
 
@@ -84,6 +99,7 @@ class EffectNode implements Consumer {
         if (this.disposed) {
             return;
         }
+        this.isWatched = false;
         unwatchProducers(this);
         this.disposed = true;
     }

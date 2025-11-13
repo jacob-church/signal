@@ -11,7 +11,7 @@
             "program": "${file}",
             "cwd": "${workspaceFolder}",
             "env": {},
-            "runtimeExecutable": "/root/.deno/bin/deno",
+            "runtimeExecutable": "/usr/local/bin/deno",
             "runtimeArgs": [
                 "run",
                 "--unstable",
@@ -27,7 +27,7 @@
             "program": "${file}",
             "cwd": "${workspaceFolder}",
             "env": {},
-            "runtimeExecutable": "/root/.deno/bin/deno",
+            "runtimeExecutable": "/usr/local/bin/deno",
             "runtimeArgs": [
                 "test",
                 "--unstable",
