@@ -7,12 +7,22 @@
  * This poses a serious problem for garbage collection.
  */
 interface SignalNode {
+    /**
+     * Every node is either watched or unwatched.
+     */
     isWatched: boolean;
 }
 
 interface Producer<T = unknown> extends SignalNode {
     value: T;
     resolveValue(): void;
+    /**
+     * We partition our Consumer dependencies into "watched" and "unwatched"
+     * sets.
+     *
+     * The unwatched Consumers are held weakly, so they don't prevent garbage
+     * collection.
+     */
     readonly watched: Map<Consumer, number>;
     readonly unwatched: Map<WeakRef<Consumer>, number>;
     equals(a: T, b: T): boolean;
@@ -23,6 +33,9 @@ interface Consumer extends SignalNode {
     invalidate(): void;
     readonly producers: Map<Producer, number>;
     readonly computeVersion: number;
+    /**
+     * For convenience, the Consumer holds its own WeakRef to hand out as needed.
+     */
     readonly weakRef: WeakRef<Consumer>;
 }
 
@@ -84,6 +97,7 @@ export class Computed<T> implements Producer<T>, Consumer {
             this.value === UNSET ||
             (this.stale && anyProducersHaveChanged(this))
         ) {
+            ++this.computeVersion;
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -100,6 +114,16 @@ export class Computed<T> implements Producer<T>, Consumer {
 }
 
 function notifyConsumers(producer: Producer): void {
+    // We notify both watched and unwatched consumers
+    for (const [weakRef, lastSeenVersion] of producer.unwatched.entries()) {
+        const consumer = weakRef.deref();
+        if (consumer && consumer.computeVersion == lastSeenVersion) {
+            consumer.invalidate();
+        } else {
+            producer.unwatched.delete(weakRef);
+            consumer?.producers.delete(producer);
+        }
+    }
     for (const consumer of producer.watched.keys()) {
         !unlinkIfNeeded(consumer, producer) && consumer.invalidate();
     }
@@ -112,10 +136,16 @@ function recordAccess(producer: Producer): void {
 
     activeConsumer.producers.set(producer, producer.valueVersion);
     const computeVersion = activeConsumer.computeVersion;
-    /** */
+    /**
+     * We check the Consumer here, because being watched is all about how
+     * Consumer references get stored
+     */
     if (activeConsumer.isWatched) {
         producer.watched.set(activeConsumer, computeVersion);
-        /** */
+        /**
+         * We delete in this case and not the other because becoming unwatched
+         * is handled eagerly by Effect disposal.
+         */
         producer.unwatched.delete(activeConsumer.weakRef);
     } else {
         producer.unwatched.set(activeConsumer.weakRef, computeVersion);
@@ -165,7 +195,9 @@ function anyProducersHaveChanged(consumer: Consumer): boolean {
 }
 
 function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
-    const lastComputeVersion = producer.watched.get(consumer);
+    // We now have two places to check for the last seen version
+    const lastComputeVersion = producer.watched.get(consumer) ??
+        producer.unwatched.get(consumer.weakRef);
     if (consumer.computeVersion == lastComputeVersion) {
         return false;
     }
@@ -173,7 +205,10 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
     consumer.producers.delete(producer);
     producer.watched.delete(consumer);
     producer.unwatched.set(consumer.weakRef, lastComputeVersion!);
-
+    /**
+     * Anytime we remove from .watched, we check if it is now empty. That's
+     * the indicator that this node should operate in "unwatched" mode.
+     */
     if (producer.isWatched && producer.watched.size === 0) {
         producer.isWatched = false;
         isConsumer(producer) && unwatchProducers(producer);
@@ -183,7 +218,9 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
 
 function updateWatched(producer: Producer): void {
     if (activeConsumer) {
-        /** */
+        /**
+         * It only takes one watched Consumer to make a Producer "watched".
+         */
         producer.isWatched ||= activeConsumer.isWatched;
     }
 }
@@ -201,7 +238,10 @@ function unwatchProducers(consumer: Consumer): void {
         producer.watched.delete(consumer);
         // because we checked the link already, we know this version is correct
         producer.unwatched.set(consumer.weakRef, consumer.computeVersion);
-        /** */
+        /**
+         * Anytime we remove from .watched, we check if it is now empty. That's
+         * the indicator that this node should operate in "unwatched" mode.
+         */
         if (producer.watched.size === 0) {
             producer.isWatched = false;
             isConsumer(producer) && unwatchProducers(producer);

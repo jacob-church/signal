@@ -1,6 +1,5 @@
 import { assert } from "../lib/test.ts";
-import { computed, effect, state } from "./interface.ts";
-// import { Effect } from "./signal.ts";
+import { computed, state } from "./interface.ts";
 
 Deno.test("should not track dependencies that aren't currently relevant", () => {
     const useA = state(true);

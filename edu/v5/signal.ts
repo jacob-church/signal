@@ -81,6 +81,7 @@ export class Computed<T> implements Producer<T>, Consumer {
             this.value === UNSET ||
             (this.stale && anyProducersHaveChanged(this))
         ) {
+            ++this.computeVersion;
             const newValue = asActiveConsumer(this, this.compute);
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
