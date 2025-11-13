@@ -139,6 +139,7 @@ Deno.test("should track unwatched changes", () => {
 });
 
 Deno.test("circular signal dependencies should error", () => {
+    // deno-lint-ignore prefer-const
     let a: Signal<number>;
     a = computed(() => a.get() + 1);
     let error = false;
@@ -181,6 +182,7 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
     const rightRoot = state("a");
     const right = computed(() => rightRoot.get());
 
+    // deno-lint-ignore no-explicit-any
     const out: any[] = [];
     effect(() => {
         if (toggle.get()) {
@@ -192,8 +194,11 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
 
     flushEffectQueue();
 
+    // deno-lint-ignore no-explicit-any
     assert((leftRoot as any).node.isWatched == true, "left should be watched");
+
     assert(
+        // deno-lint-ignore no-explicit-any
         (rightRoot as any).node.isWatched == false,
         "right should be unwatched",
     );
@@ -202,12 +207,14 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
     flushEffectQueue();
 
     assert(
+        // deno-lint-ignore no-explicit-any
         (leftRoot as any).node.isWatched == true,
         "left is not unwatched until links are cleaned up",
     );
 
     leftRoot.set(2);
     assert(
+        // deno-lint-ignore no-explicit-any
         (leftRoot as any).node.isWatched == false,
         "left should detect unwatched on notify",
     );

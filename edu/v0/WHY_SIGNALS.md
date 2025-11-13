@@ -7,6 +7,19 @@
 Before Signals, the most obvious way to deal with **reactive state** would be to
 use some form of Events.
 
+```typescript
+...
+eventHub.emit('someEvent', optionalPayload)
+...
+
+...
+// somewhere else...
+eventHub.listen('someEvent', (payload) => {
+    // do things with that data
+})
+...
+```
+
 Perhaps this is familiar: a user clicks a button or enters some text and an
 Event is fired. Something somewhere listens to that Event, reads the new data,
 and does some computation with it. This is a perfectly reasonable and functional

@@ -44,7 +44,7 @@ class EffectNode implements Consumer {
     >();
 
     public isWatched = true;
-    public readonly weakRef = new WeakRef(this);
+    public readonly weakRef: WeakRef<EffectNode> = new WeakRef(this);
 
     private disposed?: true;
     private computing = false;
