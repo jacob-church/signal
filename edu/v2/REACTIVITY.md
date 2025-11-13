@@ -12,8 +12,6 @@ This is an easy problem to solve if we understand the call stack.
 
 ## Wrapping our heads around recursion and the callstack
 
-(TODO links to source code)
-
 Hopefully if you're reading this you understand what a stack is, but let's be
 clear about the _call stack_.
 
@@ -39,6 +37,41 @@ global variable does the trick), and restoring values is as simple as keeping
 previous values of our global variable in the call stack, and restoring them
 with a `try {} finally {}`.
 
+```typescript
+let activeConsumer: Consumer | undefined = undefined;
+function asActiveConsumer<T>(consumer: Consumer | undefined, fn: () => T): T {
+    const prev = activeConsumer;
+    activeConsumer = consumer;
+    try {
+        return fn();
+    } finally {
+        activeConsumer = prev;
+    }
+}
+
+function recordAccess(producer: Producer): void {
+    if (!activeConsumer) {
+        return;
+    }
+
+    producer.consumers.add(activeConsumer);
+}
+
+// see State.get
+public get(): T {
+    recordAccess(this);
+    return this.value;
+}
+
+// see Computed.resolveValue
+public resolveValue(): void {
+    if (this.value == UNSET || this.stale) {
+        this.value = asActiveConsumer(this, this.compute);
+    }
+    this.stale = false;
+}
+```
+
 ## Notification and invalidation
 
 Once a Producer can keep track of its Consumers, it can notify them of changes.
@@ -50,3 +83,22 @@ laziness of our application--for all we know a notified `Computed` may never be
 accessed again! In any case, the notification must be recursive (up the graph in
 this case) so that all transitive dependencies can have the opportunity to
 recompute.
+
+```typescript
+function notifyConsumers(producer: Producer): void {
+    for (const consumer of producer.consumers.keys()) {
+        consumer.invalidate();
+    }
+}
+
+// see Computed.invalidate
+public invalidate() {
+    this.stale = true;
+    notifyConsumers(this);
+}
+```
+
+
+> [**Prev - Reactivity**](../v1/REACTIVITY.md)
+
+> [**Next - Optimizations**](../v3/SIMPLE_OPTIMIZATIONS.md)

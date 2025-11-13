@@ -41,3 +41,7 @@ rendering to a canvas? Then flush the queue on every animation frame (or enough
 of them to meet a target framerate). Is it saving changes to your backend? Then
 flush some unit of time after the last user input. The answer will depend on
 your particular needs.
+
+> [**Prev - Smarter Reactivity**](../v4/SMARTER_REACTIVITY.md)
+
+> [**Next - Memory Management**](../v6/MEMORY_MANAGEMENT.md)

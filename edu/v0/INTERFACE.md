@@ -137,3 +137,7 @@ effect(() => {
 
 (Of course, the syntactic details of this will vary heavily from one framework
 to another, but this is the conceptual gist).
+
+> [**Why Signals**](./WHY_SIGNALS.md)
+
+> [**Next - Laziness and Caching**](../v1/LAZY_CACHING.md)

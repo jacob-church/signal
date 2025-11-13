@@ -259,3 +259,5 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
     return true;
 }
 ```
+
+> [**Prev - Effects**](../v5/EFFECTS.md)

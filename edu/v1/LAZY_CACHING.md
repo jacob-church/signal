@@ -15,3 +15,7 @@ if (this.value === UNSET) {
 
 For now, that's it, but we'll see in future versions how we work tomaintain and
 honor those priorities.
+
+> [**Prev - Interface**](../v0/INTERFACE.md)
+
+> [**Next - Reactivity**](../v2/REACTIVITY.md)

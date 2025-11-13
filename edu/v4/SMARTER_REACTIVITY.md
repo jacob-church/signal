@@ -70,3 +70,7 @@ function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {
     return true;
 }
 ```
+
+> [**Prev - Optimizations**](../v3/SIMPLE_OPTIMIZATION.md)
+
+> [**Next - Effects**](../v5/EFFECTS.md)

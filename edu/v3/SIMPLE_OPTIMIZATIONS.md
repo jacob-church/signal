@@ -194,3 +194,7 @@ for their values, _they too_ will look at their dependencies skeptically and
 avoid recomputing where possible. So it may be that our dependencies don't have
 to recompute either to settle the matter! Either way: after calling `get()` we
 can say with absolute confidence _whether the Producer has changed or not_.
+
+> [**Prev - Optimizations**](../v3/SIMPLE_OPTIMIZATIONS.md)
+
+> [**Next - Smarter Reactivity**](../v5/SMARTER_REACTIVITY.md)
