@@ -6,7 +6,7 @@ still pretty slow.
 
 ## Optimization 1: "Memoized" stale-marking
 
-(TODO: image)
+<img src="./stale_marking.png" width="800">
 
 This is the lowest hanging fruit: once part of the graph is stale, it does no
 good to receive further notifications.
@@ -29,7 +29,7 @@ nobody above it could have computed either. Either way, all the nodes above this
 
 ## Optimization 2: Stingy notifications
 
-(TODO: image)
+<img src="./noop_write.png" width="800">
 
 When values at the bottom of the graph change, the rest of the graph is
 notified. However, we would really prefer if this only happened for _meaningful_
@@ -81,7 +81,7 @@ intentional, and no sense of equality matters at all: always notify.
 
 ## Optimization 3: Reluctant recomputation
 
-(TODO: image)
+<img src="./sparing_recompute.png" width="800">
 
 Computations can be _expensive_. Especially when there are a lot of them--though
 even a simple `Computed` can be pretty hefty. Therefore, we don't want to run
@@ -108,15 +108,15 @@ if (this.value === UNSET || (this.stale && anyProducersHaveChange(this))) {
 this.stale = false;
 ```
 
-Evaluating this means tracking a Consumer's Producers, and since we're already
-linking in the other direction, thats not hard to achieve. However, once we have
-those links, we need a cheap and fast way (performance!) to check if those
-Producers are holding a meaningful change to their values.
+Evaluating this means tracking a `Consumer`'s `Producer`s, and since we're
+already linking in the other direction, thats not hard to achieve. However, once
+we have those links, we need a cheap and fast way (performance!) to check if
+those `Producer`s are holding a meaningful change to their values.
 
 ### Cheap comparisons
 
 We've already established that comparing values could be expensive, so we should
-hesitate a little to simply compare a Producers old value with its new value.
+hesitate a little to simply compare a `Producer`s old value with its new value.
 (Thats certainly an option, but let's treat it as the option of last resort for
 now.)
 
@@ -134,8 +134,8 @@ interface Producer<T> {
 ```
 
 Each producer has a number, alongside it's value. When the value changes, _the
-number changes_. Consumers can store this number without hassle, and now we have
-a cheap heuristic to verify inputs.
+number changes_. `Consumer`s can store this number without hassle, and now we
+have a cheap heuristic to verify inputs.
 
 ```typescript
 // see State.set
@@ -189,11 +189,11 @@ Well, strictly _no_. At this point, we're evaluating a `Computed`--we're not
 sure we want to run its `compute` function, because that might be very
 expensive. Well, if that's true, the most expensive part of the function _isn't_
 calling `get()` on dependencies. It's what we intend to _do_ with that
-information. Further, this entire process is recursive: when we ask Producers
+information. Further, this entire process is recursive: when we ask `Producer`s
 for their values, _they too_ will look at their dependencies skeptically and
 avoid recomputing where possible. So it may be that our dependencies don't have
 to recompute either to settle the matter! Either way: after calling `get()` we
-can say with absolute confidence _whether the Producer has changed or not_.
+can say with absolute confidence _whether the `Producer` has changed or not_.
 
 > [**Prev - Optimizations**](../v3/SIMPLE_OPTIMIZATIONS.md)
 

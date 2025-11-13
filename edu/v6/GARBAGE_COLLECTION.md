@@ -43,4 +43,4 @@ Then, you "sweep"
 1. Iterate over every object in memory and deallocate them if they're not marked
 2. ...that's it!
 
-(TODO: image)
+<img src="./mark_and_sweep.png" width="800">

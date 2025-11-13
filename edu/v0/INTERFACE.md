@@ -1,11 +1,12 @@
 # What are Signals?
 
-Signals are a framework for **reactive state management**, with **high
-performance** characteristics, and a **declarative syntax**.
+[Signals](https://github.com/tc39/proposal-signals) are a framework for
+**reactive state management**, with **high performance** characteristics, and a
+**declarative syntax**.
 
 ## The Signal graph
 
-(image)
+<image src="./graph.png" width="800">
 
 Signals are one way of composing an application's data. At the bottom of graph
 are simple pieces of mutable "state". These can be basic properties, user
@@ -13,8 +14,9 @@ inputs, etc. In the middle of the graph are bits of "computed" state. These are
 the more refined, processed values, computed essentially like "pure functions"
 of more basic data (lower in the graph). At the top are "side-effects" (or just
 "effects" for short). These answer the question "what do I need to _do_ with
-this data", and often include things like updating the DOM, rendering to a
-canvas, or even uploading application state to a server.
+this data", and often include things like updating the
+[DOM](https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model),
+rendering to a canvas, or even uploading application state to a server.
 
 ## Reactive
 

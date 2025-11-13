@@ -1,13 +1,13 @@
 # Memory Management
 
 Up to this point I have been ignoring a glaring problem with our Signals:
-garbage collection.
-
-<link to Garbage Collection>
+[garbage collection](./GARBAGE_COLLECTION.md).
 
 ## Back-references
 
 The problem falls on these `Consumer` links.
+
+<img src="./backreference.png" width="400">
 
 `Producer` links are generally not problematic--this is the way that most code
 is written! You define an object of some kind, then you define other objects
@@ -44,6 +44,8 @@ infection--once one thing is Disposable, other things follow.
 
 ### "Watched" vs. "Unwatched"
 
+<img src="watched.png" width="800">
+
 This is the popular solution among frameworks. The responsibility for
 memory-management can't be _completely_ avoided, but at least it can be
 restrained: only the `Effect`s need to be `Disposable`. Then, as long as a
@@ -71,6 +73,8 @@ portions of the Signal graph.
 > packed full of Signals and user interactions this is a rare benefit, however.
 
 ### WeakRefs
+
+<img src="./weakref.png" width="400">
 
 Another solution to our problem is "weak references". Remember the Mark and
 Sweep algorithm? Well, the "mark" step only follows _strong_ references. The
@@ -150,9 +154,11 @@ our slow, and for this guide, I choose weak references (for unwatched nodes).
 
 ### Watching
 
-(TODO: image; watched parents, make watched children) First, we will assume that
-the graph is "unwatched" by default. This is the safe choice, but also makes the
-next step easier: when does a node in the graph become watched? Simple:
+(TODO: image; watched parents, make watched children)
+
+First, we will assume that the graph is "unwatched" by default. This is the safe
+choice, but also makes the next step easier: when does a node in the graph
+become watched? Simple:
 
 - when an Effect depends on it
 - when a "watched" node depends on it
@@ -164,7 +170,7 @@ down"), a node will become "watched" if it is ever accessed by another watched
 node.
 
 With this in place, we need only to make sure we store references to watched and
-unwatched Consumers correctly in each Producer.
+unwatched `Consumer`s correctly in each `Producer`.
 
 ```typescript
 function recordAccess(producer: Producer): void {
@@ -192,7 +198,7 @@ An Effect is disposed (sigh. Can't be avoided completely.), and a whole portion
 of the graph needs to be updated immediately.
 
 This is a simple recursive process: transfer the unwatching node from the
-watched set to the unwatched set in each of it's Producers. If a Producer no
+watched set to the unwatched set in each of it's `Producer`s. If a `Producer` no
 longer has any "watchers", mark it unwatched and recurse.
 
 ```typescript
@@ -211,8 +217,6 @@ function unwatchProducers(consumer: Consumer): void {
     }
 }
 ```
-
-(TODO: image)
 
 #### Effects and conditional logic
 
@@ -234,7 +238,7 @@ effect(() => {
 });
 ```
 
-This means that an Effect can _lose sight_ of some of it's Producers, and thus
+This means that an Effect can _lose sight_ of some of it's `Producer`s, and thus
 be unable to unwatch them when disposal time comes around. Therefore, the
 responsible thing to do is to make sure those dependencies are unwatched when
 the dependencies are dropped. (There's a clue that we should do this in the

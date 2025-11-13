@@ -27,7 +27,7 @@ those dependencies.
 
 ## Evaluating "stale" links
 
-The useful framing question here is "did this Producer participate in my last
+The useful framing question here is "did this `Producer` participate in my last
 call to `compute`". (We _do_ have to have called `compute` to determine that a
 dependency doesn't matter anymore--else we have no way of inspecting how one
 change to a Signal dependency could lead to dropping dependencies on others.)
@@ -50,13 +50,14 @@ interface Consumer {
 }
 ```
 
-Think about it, what better way to sync between a Producer and a Consumer than
-"I know I participated in the last call to `compute` because I ~~got the t-shirt
-at the merch table~~ got the number you handed out to everyone who showed up.
+Think about it, what better way to sync between a `Producer` and a `Consumer`
+than "I know I participated in the last call to `compute` because I ~~got the
+t-shirt at the merch table~~ got the number you handed out to everyone who
+showed up.
 
-With this version number in hand, its really easy for Producers and Consumers to
-avoid needless updating: don't notify Consumers if our link is stale. Don't
-check changes to Producers if our link is stale.
+With this version number in hand, its really easy for `Producer`s and
+`Consumer`s to avoid needless updating: don't notify `Consumer`s if our link is
+stale. Don't check changes to `Producer`s if our link is stale.
 
 ```typescript
 function unlinkIfNeeded(consumer: Consumer, producer: Producer): boolean {

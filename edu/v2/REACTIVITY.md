@@ -5,8 +5,8 @@ that when you read a Signal's value, it should _always_ be **consistent** with
 the values of it's dependencies.
 
 Fundamentally, keeping our Signal graph in a consistent state requires some way
-for Producers to notify their consumers when a change has happened, but to do
-that, first a Producer needs to know who it's Consumers _are_.
+for `Producer`s to notify their consumers when a change has happened, but to do
+that, first a `Producer` needs to know who it's `Consumer`s _are_.
 
 This is an easy problem to solve if we understand the call stack.
 
@@ -31,9 +31,9 @@ _Consumer_ by looking up the call stack.
 Now, programming languages don't typically _expose_ their call stack (for good
 reason), but that's fine; we only really need the "top" of the stack anyways.
 
-Therefore, figuring out who the current Consumer is only requires saving that
-Consumer in a place we can access before reaching inside of it's dependencies (a
-global variable does the trick), and restoring values is as simple as keeping
+Therefore, figuring out who the current `Consumer` is only requires saving that
+`Consumer` in a place we can access before reaching inside of it's dependencies
+(a global variable does the trick), and restoring values is as simple as keeping
 previous values of our global variable in the call stack, and restoring them
 with a `try {} finally {}`.
 
@@ -74,9 +74,9 @@ public resolveValue(): void {
 
 ## Notification and invalidation
 
-Once a Producer can keep track of its Consumers, it can notify them of changes.
-This is a simple process: a Producer iterates over its Consumers and
-`invalidate`s them. Importantly however, **this should not cause eager
+Once a `Producer` can keep track of its `Consumer`s, it can notify them of
+changes. This is a simple process: a `Producer` iterates over its `Consumer`s
+and `invalidate`s them. Importantly however, **this should not cause eager
 recalculations**. Instead, `Computed` values mark a flag that communicates "next
 time my value is accessed I may need to recompute it". This maintains the
 laziness of our application--for all we know a notified `Computed` may never be
@@ -97,7 +97,6 @@ public invalidate() {
     notifyConsumers(this);
 }
 ```
-
 
 > [**Prev - Reactivity**](../v1/REACTIVITY.md)
 
