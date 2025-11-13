@@ -12,8 +12,9 @@ follows:
   implementation includes reactive updates and state synchronization
 - [`v3`](./v3/SIMPLE_OPTIMIZATIONS.md) tightens up some inefficiencies in our
   implementation.
-- [`v4`](./v4/EFFECTS.md) adds schedulable side-effects
-- [`v5`](./v4/MEMORY_MANAGEMENT.md) discusses garbage collection concerns and a
+- [`v4`](./v4/SMARTER_REACTIVITY.md) improves fine-grained tracking of conditional dependencies
+- [`v5`](./v5/EFFECTS.md) adds schedulable side-effects
+- [`v6`](./v6/MEMORY_MANAGEMENT.md) discusses garbage collection concerns and a
   simple approach to responsible memory management.
 
 ## How to use this guide
