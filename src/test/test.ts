@@ -7,6 +7,8 @@ import {
 import type { Signal } from "../reactive/types.ts";
 import { hasFlags, WATCHED } from "../reactive/flags.ts";
 
+// TODO: split up tests; write more
+
 Deno.test("lazy, cached", () => {
     let count = 0;
     const c = computed(() => {
