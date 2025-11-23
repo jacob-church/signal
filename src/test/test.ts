@@ -1,4 +1,4 @@
-import { computed, effect, flushEffectQueue, state } from "../interface.ts";
+import { computed, effect, runEffects, state } from "../interface.ts";
 import { assert } from "./lib.ts";
 import {
     SignalChangedWhileComputingError,
@@ -114,7 +114,7 @@ Deno.test("should track unwatched changes", () => {
         !hasFlags((watched as any).node, WATCHED),
         "not watched until the effect is run",
     );
-    flushEffectQueue();
+    runEffects();
     assert(
         // deno-lint-ignore no-explicit-any
         hasFlags((watched as any).node, WATCHED),
@@ -128,7 +128,7 @@ Deno.test("should track unwatched changes", () => {
         "no effect has watched this signal",
     );
     leaf.set(1);
-    flushEffectQueue();
+    runEffects();
     assert(
         out.length == 2 && out[1] == 1,
         "effect should run with up to date data",
@@ -165,7 +165,7 @@ Deno.test("invalidating a Signal dependency inside an effect should error", () =
     });
     let error = false;
     try {
-        flushEffectQueue();
+        runEffects();
     } catch (e: unknown) {
         if (e instanceof SignalChangedWhileComputingError) {
             error = true;
@@ -193,7 +193,7 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
         }
     });
 
-    flushEffectQueue();
+    runEffects();
 
     assert(
         // deno-lint-ignore no-explicit-any
@@ -208,7 +208,7 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
     );
 
     toggle.set(false);
-    flushEffectQueue();
+    runEffects();
 
     assert(
         // deno-lint-ignore no-explicit-any

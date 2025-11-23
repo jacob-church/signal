@@ -10,8 +10,9 @@ export type { Computed } from "./src/reactive/computed.ts";
 export {
     computed,
     constant,
+    disposeEffects,
     effect,
-    flushEffectQueue,
+    runEffects,
     state,
     untracked,
 } from "./src/interface.ts";

@@ -102,7 +102,7 @@ function, updating Signal values will be significantly **less efficient**.
 `effect` is a special function for describing a side-effect that depends on the
 value of some number of `Signal`s. By default, the provided calculation will
 _not_ run when it's dependencies change. Instead, it is left to the user to
-decide how frequently the function should run by calling `flushEffectQueue()`.
+decide how frequently the function should run by calling `runEffects()`.
 
 This pattern ensures that the laziness of `Signal`s isn't in vain by only
 forcing `Signal` values to compute when it's reasonably necessary (such as at
@@ -122,7 +122,7 @@ effect(() => {
 
 ```typescript
 function flushEffects() {
-    flushEffectsQueue();
+    runEffects();
     requestAnimationFrame(flushEffects); // continuously flush the queue each frame
 }
 flushEffects();
@@ -133,16 +133,16 @@ vs. saving/serializing state changes), simply define associate an `effect` with
 a specific `namespace` through it's optional parameter.
 
 Then, if you want to flush a specific queue, pass this identifier to
-`flushEffectsQueue()`:
+`runEffects()`:
 
 ```typescript
 effect(() => document.getElementsByTagName('body').innerHtml = bodyContents.get(), {
    namespace: 'render',
 });
 ...
-flushEffectsQueue('render');
+runEffects('render');
 ```
 
-> **_NOTE_**: Calling `flushEffectsQueue` will flush _all_ queues, regardless of
+> **_NOTE_**: Calling `runEffects` will flush _all_ queues, regardless of
 > namespace, so be mindful about defining effect namespaces and flushing their
 > relevant queues.

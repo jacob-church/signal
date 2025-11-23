@@ -87,7 +87,7 @@ export function effect(
  * @param namespace (optional) the identifier of a specific queue to flush.
  *        If not specified, then all queues are flushed.
  */
-export function flushEffectQueue(namespace?: string): void {
+export function runEffects(namespace?: string): void {
     if (!namespace) {
         for (const key of EffectQueues.keys()) {
             const effects = Array.from(EffectQueues.get(key)!);
@@ -101,6 +101,30 @@ export function flushEffectQueue(namespace?: string): void {
         EffectQueues.get(namespace)?.clear();
         for (const effect of effects) {
             effect.run();
+        }
+    }
+}
+
+/**
+ * Disposes `Effect`'s in a specified queue, clearing the queue in the process.
+ *
+ * @param namespace (optional) the identifier of a specific queue to dispose.
+ *        If not specified, then all queues are flushed.
+ */
+export function disposeEffects(namespace?: string): void {
+    if (!namespace) {
+        for (const key of EffectQueues.keys()) {
+            const effects = Array.from(EffectQueues.get(key)!);
+            EffectQueues.get(key)?.clear();
+            for (const effect of effects) {
+                effect[Symbol.dispose]();
+            }
+        }
+    } else {
+        const effects = Array.from(EffectQueues.get(namespace) ?? []);
+        EffectQueues.get(namespace)?.clear();
+        for (const effect of effects) {
+            effect[Symbol.dispose]();
         }
     }
 }
