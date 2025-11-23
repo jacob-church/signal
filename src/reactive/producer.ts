@@ -9,16 +9,15 @@ import type { Producer } from "./types.ts";
  */
 export function setIfWouldChange<T>(producer: Producer<T>, value: T): boolean {
     if (
-        producer.value != UNSET &&
-        /**
-         * The Producer itself should be configured to determine what constitutes a
-         * "meaningful change".
-         *
-         * Running the equality function without an `activeConsumer` ensures
-         * that Signal dependencies aren't recorded by this function.
-         */
+        producer.value !== UNSET &&
         asActiveConsumer(
             undefined,
+            /**
+             * The Producer itself should be configured to determine what constitutes a
+             * "meaningful change".
+             * Running the equality function without an `activeConsumer` ensures
+             * that Signal dependencies aren't recorded by this function.
+             */
             producer.equals.bind(undefined, producer.value, value),
         )
     ) {
@@ -33,12 +32,6 @@ export function setIfWouldChange<T>(producer: Producer<T>, value: T): boolean {
  * the next evaluation of that `SignalNode `
  */
 export function notifyConsumers(producer: Producer): void {
-    for (const consumer of producer.watched.keys()) {
-        // anytime we iterate over links is an opportunity to clean up unneeded
-        // links
-        !unlinkIfNeeded(producer, consumer) && consumer.invalidate();
-    }
-
     for (const [weakRef, lastSeenVersion] of producer.unwatched.entries()) {
         const consumer = weakRef.deref();
         /**
@@ -52,5 +45,10 @@ export function notifyConsumers(producer: Producer): void {
             producer.unwatched.delete(weakRef);
             consumer?.producers.delete(producer);
         }
+    }
+    for (const consumer of producer.watched.keys()) {
+        // anytime we iterate over links is an opportunity to clean up unneeded
+        // links
+        !unlinkIfNeeded(producer, consumer) && consumer.invalidate();
     }
 }

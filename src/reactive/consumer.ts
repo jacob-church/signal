@@ -1,3 +1,4 @@
+import { clearFlags, hasFlags, WATCHED } from "./flags.ts";
 import { type Consumer, isConsumer, type Producer } from "./types.ts";
 import { unwatchProducers } from "./watch.ts";
 
@@ -48,11 +49,17 @@ export function unlinkIfNeeded(producer: Producer, consumer: Consumer) {
     if (consumer.computeVersion == lastSeenVersion) {
         return false;
     }
+
     consumer.producers.delete(producer);
     producer.watched.delete(consumer);
     producer.unwatched.delete(consumer.weakRef);
-    if (producer.isWatched && producer.watched.size == 0) {
-        producer.isWatched = false;
+
+    /**
+     * Unlinking from a watched Consumer can cause a Producer to become
+     * unwatched.
+     */
+    if (hasFlags(producer, WATCHED) && producer.watched.size == 0) {
+        clearFlags(producer, WATCHED);
         // Computed Signals are both Producers and Consumers
         isConsumer(producer) && unwatchProducers(producer);
     }

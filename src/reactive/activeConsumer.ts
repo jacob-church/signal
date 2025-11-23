@@ -1,3 +1,4 @@
+import { hasFlags, setFlags, WATCHED } from "./flags.ts";
 import type { Consumer, Producer } from "./types.ts";
 
 /**
@@ -43,7 +44,7 @@ export function updateWatched(producer: Producer): void {
 
     // Producers can be consumed by a variety of Signals, but it only takes
     // 1 Consumer that is watched to move the Producer to a watched state
-    producer.isWatched ||= activeConsumer.isWatched;
+    setFlags(producer, activeConsumer.flags & WATCHED);
 }
 
 /**
@@ -59,7 +60,7 @@ export function recordAccess(producer: Producer): void {
 
     activeConsumer.producers.set(producer, producer.valueVersion);
     const computeVersion = activeConsumer.computeVersion;
-    if (producer.isWatched) {
+    if (hasFlags(activeConsumer, WATCHED)) {
         producer.watched.set(activeConsumer, computeVersion);
         producer.unwatched.delete(activeConsumer.weakRef);
     } else {

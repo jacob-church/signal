@@ -5,6 +5,7 @@ import {
     SignalCircularDependencyError,
 } from "../reactive/error.ts";
 import type { Signal } from "../reactive/types.ts";
+import { hasFlags, WATCHED } from "../reactive/flags.ts";
 
 Deno.test("lazy, cached", () => {
     let count = 0;
@@ -110,20 +111,20 @@ Deno.test("should track unwatched changes", () => {
 
     assert(
         // deno-lint-ignore no-explicit-any
-        (watched as any).node.isWatched == false,
+        !hasFlags((watched as any).node, WATCHED),
         "not watched until the effect is run",
     );
     flushEffectQueue();
     assert(
         // deno-lint-ignore no-explicit-any
-        (watched as any).node.isWatched == true,
+        hasFlags((watched as any).node, WATCHED),
         "should be watched after run of the queue",
     );
     assert(out.length == 1, "queue should run effect");
 
     assert(
         // deno-lint-ignore no-explicit-any
-        (unwatched as any).node.isWatched == false,
+        !hasFlags((unwatched as any).node, WATCHED),
         "no effect has watched this signal",
     );
     leaf.set(1);
@@ -194,12 +195,15 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
 
     flushEffectQueue();
 
-    // deno-lint-ignore no-explicit-any
-    assert((leftRoot as any).node.isWatched == true, "left should be watched");
+    assert(
+        // deno-lint-ignore no-explicit-any
+        hasFlags((leftRoot as any).node, WATCHED),
+        "left should be watched",
+    );
 
     assert(
         // deno-lint-ignore no-explicit-any
-        (rightRoot as any).node.isWatched == false,
+        !hasFlags((rightRoot as any).node, WATCHED),
         "right should be unwatched",
     );
 
@@ -208,14 +212,14 @@ Deno.test("effects with conditional branches cause nodes to become unwatched", (
 
     assert(
         // deno-lint-ignore no-explicit-any
-        (leftRoot as any).node.isWatched == true,
+        hasFlags((leftRoot as any).node, WATCHED),
         "left is not unwatched until links are cleaned up",
     );
 
     leftRoot.set(2);
     assert(
         // deno-lint-ignore no-explicit-any
-        (leftRoot as any).node.isWatched == false,
+        !hasFlags((leftRoot as any).node, WATCHED),
         "left should detect unwatched on notify",
     );
 });

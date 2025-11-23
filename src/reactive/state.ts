@@ -58,7 +58,7 @@ export class State<T> implements WritableSignal<T> {
  */
 class StateNode<T> implements Producer<T> {
     public valueVersion = 0;
-    public isWatched = false;
+    public flags = 0;
     public readonly watched = new Map<Consumer, number>();
     public readonly unwatched = new Map<WeakRef<Consumer>, number>();
 

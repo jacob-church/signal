@@ -8,8 +8,9 @@ import {
     SignalChangedWhileComputingError,
     SignalCircularDependencyError,
 } from "./error.ts";
+import { clearFlags, COMPUTING, hasFlags, setFlags, STALE } from "./flags.ts";
 import { notifyConsumers, setIfWouldChange } from "./producer.ts";
-import { COMPUTING, UNSET } from "./symbols.ts";
+import { UNSET } from "./symbols.ts";
 import type { Consumer, EqualsFn, Producer, ReadonlySignal } from "./types.ts";
 
 /**
@@ -55,8 +56,7 @@ class ComputedNode<T> implements Producer<T>, Consumer {
     public value = UNSET as T;
     public valueVersion = 0;
     public computeVersion = 0;
-    public stale = true;
-    public isWatched = false;
+    public flags = STALE;
     public readonly weakRef = new WeakRef(this);
     public readonly producers = new Map<Producer, number>();
     public readonly watched = new Map<Consumer, number>();
@@ -68,29 +68,24 @@ class ComputedNode<T> implements Producer<T>, Consumer {
     ) {}
 
     public resolveValue() {
-        if (this.value == COMPUTING) {
+        if (hasFlags(this, COMPUTING)) {
             throw new SignalCircularDependencyError();
         }
         if (
-            this.value == UNSET || (this.stale && anyProducersHaveChanged(this))
+            this.value === UNSET ||
+            (hasFlags(this, STALE) && anyProducersHaveChanged(this))
         ) {
             ++this.computeVersion;
-            const oldValue = this.value;
             let newValue: T;
             try {
-                /**
-                 * This primes the condition at the top of this method
-                 * to detect cycles.
-                 */
-                this.value = COMPUTING as T;
+                setFlags(this, COMPUTING);
                 newValue = asActiveConsumer(this, this.compute);
             } catch (e) {
                 // keep computeVersion in sync with SUCCESSFUL computation
                 --this.computeVersion;
                 throw e;
             } finally {
-                // restore value for ensuing comparison
-                this.value = oldValue;
+                clearFlags(this, COMPUTING);
             }
             setIfWouldChange(this, newValue) && ++this.valueVersion;
         }
@@ -99,17 +94,15 @@ class ComputedNode<T> implements Producer<T>, Consumer {
          * indicates that work does not need to be repeated until a transitive
          * dependency marks this Signal as "stale" again.
          */
-        this.stale = false;
+        clearFlags(this, STALE);
     }
 
     public invalidate(): void {
-        if (this.value == COMPUTING) {
+        if (hasFlags(this, COMPUTING)) {
             throw new SignalChangedWhileComputingError();
         }
-        if (this.stale) {
-            return;
-        }
-        this.stale = true;
+        if (hasFlags(this, STALE)) return;
+        setFlags(this, STALE);
         notifyConsumers(this);
     }
 }

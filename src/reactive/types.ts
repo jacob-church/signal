@@ -44,9 +44,9 @@ export interface WritableSignal<T = unknown> extends Signal<T> {
 // Signal Node Types
 export interface SignalNode {
     /**
-     * whether or not a Signal is an Effect or transitive dependency of one
+     * See ./flags.ts
      */
-    isWatched: boolean;
+    flags: number;
 }
 
 /**

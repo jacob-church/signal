@@ -5,9 +5,3 @@
  * without ambiguity.
  */
 export const UNSET = Symbol("Unset");
-
-/**
- * Used to detect circular dependencies in the Signal graph, or changes to the
- * Signal graph while a Signal is computing.
- */
-export const COMPUTING = Symbol("Computing");

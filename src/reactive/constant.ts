@@ -11,7 +11,7 @@ export class Constant<T> implements ReadonlySignal<Readonly<T>> {
     /**
      * @see {@link Signal.get}
      */
-    public get(): T {
+    public get(): Readonly<T> {
         return this.value;
     }
 }

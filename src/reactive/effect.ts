@@ -3,6 +3,7 @@ import { anyProducersHaveChanged } from "./consumer.ts";
 import type { Consumer, Producer } from "./types.ts";
 import { unwatchProducers } from "./watch.ts";
 import { SignalChangedWhileComputingError } from "./error.ts";
+import { clearFlags, COMPUTING, hasFlags, setFlags, WATCHED } from "./flags.ts";
 
 /**
  * A schedulable side-effect.
@@ -24,8 +25,8 @@ export class Effect {
         enqueue(this.node);
     }
 
-    public dispose(): void {
-        this.node.dispose();
+    public [Symbol.dispose]() {
+        this.node[Symbol.dispose]();
         this.unenqueue(this.node);
     }
 }
@@ -42,12 +43,10 @@ class EffectNode implements Consumer {
         Producer,
         number
     >();
-
-    public isWatched = true;
+    public flags = WATCHED;
     public readonly weakRef: WeakRef<EffectNode> = new WeakRef(this);
 
     private disposed?: true;
-    private computing = false;
 
     constructor(
         private readonly effectFn: () => void,
@@ -60,19 +59,16 @@ class EffectNode implements Consumer {
         }
         if (this.computeVersion == 0 || anyProducersHaveChanged(this)) {
             ++this.computeVersion;
-            this.computing = true;
+            setFlags(this, COMPUTING);
             try {
                 asActiveConsumer(this, this.effectFn);
             } catch (e) {
                 --this.computeVersion;
                 throw e;
             } finally {
-                this.computing = false;
+                clearFlags(this, COMPUTING);
             }
-            /**nstanceof SignalChangedWhileComputingError) {
-                error = true;
-
-        }
+            /**
              * If there are still no Producer dependencies after running this
              * Effect as the activeConsumer, there is no reason to model this
              * function as an effect.
@@ -89,17 +85,17 @@ class EffectNode implements Consumer {
         if (this.disposed) {
             return;
         }
-        if (this.computing) {
+        if (hasFlags(this, COMPUTING)) {
             throw new SignalChangedWhileComputingError();
         }
         this.enqueue(this);
     }
 
-    public dispose(): void {
+    public [Symbol.dispose]() {
         if (this.disposed) {
             return;
         }
-        this.isWatched = false;
+        clearFlags(this, WATCHED);
         unwatchProducers(this);
         this.disposed = true;
     }
