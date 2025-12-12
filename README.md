@@ -143,6 +143,6 @@ effect(() => document.getElementsByTagName('body').innerHtml = bodyContents.get(
 runEffects('render');
 ```
 
-> **_NOTE_**: Calling `runEffects` will flush _all_ queues, regardless of
+> **_NOTE_**: Calling `runEffects()` will flush _all_ queues, regardless of
 > namespace, so be mindful about defining effect namespaces and flushing their
 > relevant queues.
